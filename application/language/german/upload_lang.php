@@ -37,19 +37,19 @@
  */
 defined('BASEPATH') or exit('No direct script access allowed');
 
-$lang['upload_userfile_not_set'] = 'Unable to find a post variable called userfile.';
-$lang['upload_file_exceeds_limit'] = 'The uploaded file exceeds the maximum allowed size in your PHP configuration file.';
-$lang['upload_file_exceeds_form_limit'] = 'The uploaded file exceeds the maximum size allowed by the submission form.';
-$lang['upload_file_partial'] = 'The file was only partially uploaded.';
-$lang['upload_no_temp_directory'] = 'The temporary folder is missing.';
-$lang['upload_unable_to_write_file'] = 'The file could not be written to disk.';
-$lang['upload_stopped_by_extension'] = 'The file upload was stopped by extension.';
-$lang['upload_no_file_selected'] = 'You did not select a file to upload.';
-$lang['upload_invalid_filetype'] = 'The filetype you are attempting to upload is not allowed.';
-$lang['upload_invalid_filesize'] = 'The file you are attempting to upload is larger than the permitted size.';
-$lang['upload_invalid_dimensions'] = 'The image you are attempting to upload doesn\'t fit into the allowed dimensions.';
-$lang['upload_destination_error'] = 'A problem was encountered while attempting to move the uploaded file to the final destination.';
-$lang['upload_no_filepath'] = 'The upload path does not appear to be valid.';
-$lang['upload_no_file_types'] = 'You have not specified any allowed file types.';
-$lang['upload_bad_filename'] = 'The file name you submitted already exists on the server.';
-$lang['upload_not_writable'] = 'The upload destination folder does not appear to be writable.';
+$lang['upload_userfile_not_set'] = 'Es konnte keine POST-Variable mit dem Namen userfile gefunden werden.';
+$lang['upload_file_exceeds_limit'] = 'Die hochgeladene Datei   berschreitet die maximal erlaubte Gr   ^=e, die in der PHP Konfigurationsdatei angegeben ist.';
+$lang['upload_file_exceeds_form_limit'] = 'Die hochgeladene Datei   berschreitet die maximal erlaubte Gr   ^=e eines Formulars.';
+$lang['upload_file_partial'] = 'Die Datei wurde nur teilweise hochgeladen.';
+$lang['upload_no_temp_directory'] = 'Der tempor  re Ordner fehlt.';
+$lang['upload_unable_to_write_file'] = 'Die Datei konnte nicht auf dem Server geschrieben werden.';
+$lang['upload_stopped_by_extension'] = 'Das Hochladen der Datei wurde durch eine Erweiterung angehalten.';
+$lang['upload_no_file_selected'] = 'Es wurde keine datei zum Hochladen ausgew  hlt.';
+$lang['upload_invalid_filetype'] = 'Der Dateityp, den Sie hochladen wollen, ist nicht g  ltig.';
+$lang['upload_invalid_filesize'] = 'Die Datei, die Sie hochladen m  chten   berschreitet die maximal erlaubte Dateigr   ^=e.';
+$lang['upload_invalid_dimensions'] = 'Die Grafik, die Sie hochladen m  chten, passt nicht in den zur Verf  gung stehenden Platz.';
+$lang['upload_destination_error'] = 'Es gab ein Problem beim internen kopieren der Datei.';
+$lang['upload_no_filepath'] = 'Der Dateipfad ist nicht g  ltig.';
+$lang['upload_no_file_types'] = 'Sie haben keinen erlaubten Dateityp angegeben.';
+$lang['upload_bad_filename'] = 'Der Dateiname existiert schon auf dem Server.';
+$lang['upload_not_writable'] = 'Das Zielverzeichnis auf dem Server ist nicht beschreibbar.';
