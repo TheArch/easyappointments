@@ -151,10 +151,10 @@
             </tr>
             <tr>
                 <td class="label" style="padding: 3px;font-weight: bold;">
-                    <?= lang('address') ?>
+                    <?= "Bereich" ?>
                 </td>
                 <td style="padding: 3px;">
-                    <?= e($customer['address']) ?>
+                    <?= e($customer['custom_field_1']) ?>
                 </td>
             </tr>
         </table>
