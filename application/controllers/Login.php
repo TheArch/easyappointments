@@ -74,10 +74,15 @@ class Login extends EA_Controller
                 throw new InvalidArgumentException('No password value provided.');
             }
 
-            $user_data = $this->accounts->check_login($username, $password);
+            // check LDAP first, than internal else error is raised
+            //$user_data = $this->accounts->check_login($username, $password);
 
             if (empty($user_data)) {
                 $user_data = $this->ldap_client->check_login($username, $password);
+            }
+
+            if (empty($user_data)) {
+                $user_data = $this->accounts->check_login($username, $password);
             }
 
             if (empty($user_data)) {
