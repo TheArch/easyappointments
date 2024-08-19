@@ -78,6 +78,7 @@ class Booking extends EA_Controller
         $this->load->library('notifications');
         $this->load->library('availability');
         $this->load->library('webhooks_client');
+        $this->load->library('ldap_client');
     }
 
     /**
@@ -173,6 +174,7 @@ class Booking extends EA_Controller
         $display_delete_personal_information = setting('display_delete_personal_information');
         $book_advance_timeout = setting('book_advance_timeout');
         $theme = request('theme', setting('theme', 'default'));
+        $ldap_logintoconfirm = setting('ldap_logintoconfirm');
 
         if (empty($theme) || !file_exists(__DIR__ . '/../../assets/css/themes/' . $theme . '.min.css')) {
             $theme = 'default';
@@ -313,6 +315,7 @@ class Booking extends EA_Controller
             'appointment_data' => $appointment,
             'provider_data' => $provider,
             'customer_data' => $customer,
+            'ldap_logintoconfirm' => $ldap_logintoconfirm,
         ]);
 
         $this->load->view('pages/booking');
@@ -332,6 +335,8 @@ class Booking extends EA_Controller
 
             $post_data = request('post_data');
             $captcha = request('captcha');
+            $user = request('user');
+            $pass = request('pass');
             $appointment = $post_data['appointment'];
             $customer = $post_data['customer'];
             $manage_mode = filter_var($post_data['manage_mode'], FILTER_VALIDATE_BOOLEAN);
@@ -370,6 +375,17 @@ class Booking extends EA_Controller
             $require_captcha = (bool) setting('require_captcha');
 
             $captcha_phrase = session('captcha_phrase');
+
+            // Validate user pass for non @med.uni-muenchen.de aka helios E-Mails
+            if ($user!="" && $pass!="") {
+               $user_data = $this->ldap_client->check_bind($user, $pass);
+               if ($user_data != "OK") {
+                  json_response([
+                      'ldap_verification' => false,
+                  ]);
+                  return;
+               }
+            }
 
             // Validate the CAPTCHA string.
 
