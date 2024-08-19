@@ -156,13 +156,13 @@ class Availability
                     $provider['id'],
                     $exclude_appointment_id,
                 );
-
+/* hiermit erlaube ich, dass andere services in die gleichen zeitslots mit reinkommen. sonst kann nur ein service die z.B. 3 slots nutzen
                 if ($other_service_attendants_number > 0) {
                     $slot_start->add($interval);
                     $slot_end->add($interval);
                     continue;
                 }
-
+*/
                 // Check reserved attendants for this time slot and see if current attendants fit.
                 $appointment_attendants_number = $this->CI->appointments_model->get_attendants_number_for_period(
                     $slot_start,
