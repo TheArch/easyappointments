@@ -62,6 +62,29 @@
                             </div>
 
                             <div class="mb-3">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="login-to-confirm" data-field="ldap_logintoconfirm">
+                                    <label class="form-label" for="login-to-confirm">
+                                        <?= lang('login_to_confirm') ?>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="ldap-domain">
+                                    <?= lang('domain') ?>
+                                </label>
+                                <input id="ldap-domain" class="form-control" data-field="ldap_domain">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="ldap-mail">
+                                    <?= lang('mail') ?>
+                                </label>
+                                <input id="ldap-mail" class="form-control" data-field="ldap_mail">
+                            </div>
+
+                            <div class="mb-3">
                                 <label class="form-label" for="ldap-user_dn">
                                     <?= lang('user_dn') ?>
                                 </label>

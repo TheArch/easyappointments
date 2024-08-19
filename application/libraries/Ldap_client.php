@@ -39,6 +39,45 @@ class Ldap_client
     }
 
     /**
+     * Check bind - nur user/pass pruefen, keine rollen oder mehr
+     */
+    public function check_bind(string $username, string $password): ?string
+    {
+        if (!extension_loaded('ldap')) {
+            return null;
+        }
+
+        if (empty($username)) {
+            throw new InvalidArgumentException('No username value provided.');
+        }
+
+        $ldap_is_active = setting('ldap_is_active');
+
+        if (!$ldap_is_active) {
+            return null;
+        }
+
+        // Connect to LDAP server
+
+        $ldap_host = setting('ldap_host');
+        $ldap_port = (int) setting('ldap_port');
+        $ldap_domain = setting('ldap_domain');
+
+        $connection = @ldap_connect($ldap_host, $ldap_port);
+        @ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
+        @ldap_set_option($connection, LDAP_OPT_REFERRALS, 0);
+        $password = mb_convert_encoding($password, 'UTF-8', 'ISO-8859-1');
+        $user_bind = @ldap_bind($connection, "$ldap_domain\\"."$username", "$password");
+
+
+        if ($user_bind) {
+            return "OK";
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Try authenticating the user with LDAP
      *
      * @param string $username
@@ -79,6 +118,7 @@ class Ldap_client
 
         $connection = @ldap_connect($ldap_host, $ldap_port);
         @ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
+        $password = mb_convert_encoding($password, 'UTF-8', 'ISO-8859-1');
         $user_bind = @ldap_bind($connection, $user['ldap_dn'], $password);
 
         if ($user_bind) {
