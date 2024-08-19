@@ -42,6 +42,26 @@
         <?php endif; ?>
         
         <?php slot('after_captcha'); ?>
+
+        <?php if ($ldap_logintoconfirm): ?>
+            <div name="isHelios" id="isHelios" class="row frame-content m-auto">
+                <div class="col">
+                    <div id="helios-hint" class="help-block text-center text-decoration-underline" style="opacity:75"><?= lang('mit_anmeldung_freigeben') ?></div>
+
+                    <label class="user-title" for="user-text">
+                        Benutzer:
+                    </label>
+                    <input id="user-text" class="user-text form-control" type="text" value=""/>
+                    <label class="pass-title" for="pass-text">
+                        Kennwort:
+                    </label>
+                    <input id="pass-text" class="pass-text form-control" type="password" value=""/>
+
+                    <span id="pass-hint" class="help-block" style="opacity:0">&nbsp;</span>
+                </div>
+            </div>
+        <?php endif; ?>
+
     </div>
 
     <div class="d-flex fs-6 justify-content-around">
