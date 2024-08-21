@@ -31,3 +31,8 @@
 /vendor/
 /metafile
 .DS_Store
+/var/www/html/application/config/email.php
+application/config/email.php.prod
+my_changed_files.txt
+pat.txt
+xxx/
