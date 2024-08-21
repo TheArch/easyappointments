@@ -277,6 +277,7 @@ $lang['wrong_username_or_password'] = 'Benutzername/Kennwort  Überprüfung ist 
 $lang['login_to_confirm'] = 'Zur Terminbestätigung Benutzer/Kennwort prüfen.';
 $lang['domain'] = 'LDAP-Domäne';
 $lang['mail'] = 'Benutzer prüfen, wenn E-Mail nicht endet auf';
+$lang['mit_anmeldung_freigeben'] = 'Bitte Termin durch Anmeldung mit Ihrer Kennung oder der eines KUM-Kollegen freigeben.';
 $lang['any_provider'] = 'Jeder Anbieter';
 $lang['requested_hour_is_unavailable'] = 'Der gewünschte Termin ist leider nicht verfügbar. Bitte wählen Sie eine andere Zeit für den Termin.';
 $lang['customer_notifications'] = 'Kundenbenachrichtigungen';

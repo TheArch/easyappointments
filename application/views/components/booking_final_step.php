@@ -43,7 +43,7 @@
         
         <?php slot('after_captcha'); ?>
 
-        <?php if ($ldap_logintoconfirm): ?>
+        <?php if (setting('ldap_logintoconfirm')): ?>
             <div name="isHelios" id="isHelios" class="row frame-content m-auto">
                 <div class="col">
                     <div id="helios-hint" class="help-block text-center text-decoration-underline" style="opacity:75"><?= lang('mit_anmeldung_freigeben') ?></div>
