@@ -77,6 +77,15 @@
                 </div>
             <?php endif; ?>
 
+
+            <?php if (vars('calendar_view') === CALENDAR_VIEW_TABLE): ?>
+                <a class="btn btn-light mb-0" id="export-appointments" href="<?= site_url('export') ?>"
+                   data-tippy-content="<?= lang('export_appointments_hint') ?>">
+                    <i class="fas fa-file-download"></i>
+                </a>
+            <?php endif; ?>
+
+
             <button id="reload-appointments" class="btn btn-light"
                     data-tippy-content="<?= lang('reload_appointments_hint') ?>">
                 <i class="fas fa-sync-alt"></i>
