@@ -483,9 +483,10 @@ $lang['import'] = 'Importieren';
 $lang['ldap_dn'] = 'LDAP-DN';
 $lang['role'] = 'Rolle';
 $lang['at_least_one_field_required'] = 'Mindestens ein Feld muss auf der Buchungsseite als erforderlich gekennzeichnet sein.';
-$lang['customer_is_already_booked'] = 'This customer already has an appointment during the requested reservation period.';
+$lang['customer_is_already_booked'] = 'Der Benutzer hat schon einen Termin für diese Zeitspanne.';
 $lang['fields'] = 'Fields';
-$lang['invalid_credentials_provided'] = 'Invalid credentials provided, please try again.';
+$lang['invalid_credentials_provided'] = 'Falsche Anmeldedaten angegeben. Bitte noch einmal probieren.';
 $lang['calendar_url'] = 'Calendar URL';
 $lang['please_select'] = 'Bitte Wählen';
+$lang['export_appointments_hint'] = 'Termine des heutigen Tages exportieren.';
 // End
