@@ -52,7 +52,7 @@ class Export extends EA_Controller
         session(['dest_url' => site_url('calendar/export')]);
 
         $user_id = session('user_id');
-
+/*
         if (cannot('view', PRIV_SYSTEM_SETTINGS)) {
             if ($user_id) {
                 abort(403, 'Forbidden');
@@ -62,7 +62,7 @@ class Export extends EA_Controller
 
             return;
         }
-
+*/
         $role_slug = session('role_slug');
 
         $user = $this->users_model->find($user_id);
@@ -82,7 +82,8 @@ class Export extends EA_Controller
         //$all = json_encode('noch nicht');
  
         $start_date = date("Y-m-d") . ' 00:00:00';
-        $end_date   = date("Y-m-d") . ' 23:59:59';
+        $today = date('Y-m-d');
+        $end_date = date('Y-m-d', strtotime('+1 month', strtotime($today))) . ' 23:59:59';
         $all = $this->get_calendar_appointments_for_table_view($start_date,$end_date);
         script_vars([
             'user_id' => $all,
