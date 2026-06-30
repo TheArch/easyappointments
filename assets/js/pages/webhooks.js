@@ -20,6 +20,7 @@ App.Pages.Webhooks = (function () {
     const $name = $('#name');
     const $url = $('#url');
     const $actions = $('#actions');
+    const $secretHeader = $('#secret-header');
     const $secretToken = $('#secret-token');
     const $isSslVerified = $('#is-ssl-verified');
     const $notes = $('#notes');
@@ -64,6 +65,16 @@ App.Pages.Webhooks = (function () {
             $filterWebhooks.find('.selected').removeClass('selected');
             $(event.currentTarget).addClass('selected');
             $('#edit-webhook, #delete-webhook').prop('disabled', false);
+
+            // Automatically enter edit mode
+            $('#webhooks-page').addClass('editing');
+            $webhooks.find('.add-edit-delete-group').hide();
+            $webhooks.find('.save-cancel-group').show();
+            $webhooks.find('#delete-webhook').show(); // Show delete button when editing
+            $webhooks.find('.record-details').find('input, select, textarea').prop('disabled', false);
+            $webhooks.find('.record-details .form-label span').prop('hidden', false);
+            $filterWebhooks.find('button').prop('disabled', true);
+            $filterWebhooks.find('.results').css('color', '#AAA');
         });
 
         /**
@@ -71,8 +82,10 @@ App.Pages.Webhooks = (function () {
          */
         $webhooks.on('click', '#add-webhook', () => {
             App.Pages.Webhooks.resetForm();
+            $('#webhooks-page').addClass('editing');
             $webhooks.find('.add-edit-delete-group').hide();
             $webhooks.find('.save-cancel-group').show();
+            $webhooks.find('#delete-webhook').hide(); // Hide delete button when adding
             $webhooks.find('.record-details').find('input, select, textarea').prop('disabled', false);
             $webhooks.find('.record-details .form-label span').prop('hidden', false);
             $filterWebhooks.find('button').prop('disabled', true);
@@ -88,6 +101,7 @@ App.Pages.Webhooks = (function () {
             const id = $id.val();
 
             App.Pages.Webhooks.resetForm();
+            $('#webhooks-page').removeClass('editing');
 
             if (id !== '') {
                 select(id, true);
@@ -102,6 +116,7 @@ App.Pages.Webhooks = (function () {
                 name: $name.val(),
                 url: $url.val(),
                 actions: '',
+                secret_header: $secretHeader.val(),
                 secret_token: $secretToken.val(),
                 is_ssl_verified: Number($isSslVerified.prop('checked')),
                 notes: $notes.val(),
@@ -131,6 +146,7 @@ App.Pages.Webhooks = (function () {
          * Event: Edit Webhook Button "Click"
          */
         $webhooks.on('click', '#edit-webhook', () => {
+            $('#webhooks-page').addClass('editing');
             $webhooks.find('.add-edit-delete-group').hide();
             $webhooks.find('.save-cancel-group').show();
             $webhooks.find('.record-details').find('input, select, textarea').prop('disabled', false);
@@ -174,6 +190,7 @@ App.Pages.Webhooks = (function () {
         App.Http.Webhooks.save(webhook).then((response) => {
             App.Layouts.Backend.displayNotification(lang('webhook_saved'));
             App.Pages.Webhooks.resetForm();
+            $('#webhooks-page').removeClass('editing');
             $filterWebhooks.find('.key').val('');
             App.Pages.Webhooks.filter('', response.id, true);
         });
@@ -188,6 +205,7 @@ App.Pages.Webhooks = (function () {
         App.Http.Webhooks.destroy(id).then(() => {
             App.Layouts.Backend.displayNotification(lang('webhook_deleted'));
             App.Pages.Webhooks.resetForm();
+            $('#webhooks-page').removeClass('editing');
             App.Pages.Webhooks.filter($filterWebhooks.find('.key').val());
         });
     }
@@ -254,8 +272,10 @@ App.Pages.Webhooks = (function () {
         $id.val(webhook.id);
         $name.val(webhook.name);
         $url.val(webhook.url);
+        $secretHeader.val(webhook.secret_header);
         $secretToken.val(webhook.secret_token);
         $isSslVerified.prop('checked', Boolean(Number(webhook.is_ssl_verified)));
+        $notes.val(webhook.notes);
 
         $actions.find('input:checkbox').prop('checked', false);
 

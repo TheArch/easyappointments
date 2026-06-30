@@ -24,13 +24,13 @@ $protocol =
 
 $domain = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
-$request_uri = dirname($_SERVER['SCRIPT_NAME']);
+$request_uri = dirname($_SERVER['SCRIPT_NAME'] ?? 'index.php');
 
 if ($request_uri === '.') {
     $request_uri = '';
 }
 
-$config['base_url'] = trim($protocol . $domain . $request_uri, '/');
+$config['base_url'] = rtrim(!is_cli() ? $protocol . $domain . $request_uri : Config::BASE_URL, '/');
 
 /*
 |--------------------------------------------------------------------------
@@ -53,7 +53,7 @@ $config['index_page'] = 'index.php';
 | URI string.  The default setting of 'AUTO' works for most servers.
 | If your links do not seem to work, try one of the other delicious flavors:
 |
-| 'AUTO'			Default - auto detects
+| 'AUTO'			Default - auto-detects
 | 'PATH_INFO'		Uses the PATH_INFO
 | 'QUERY_STRING'	Uses the QUERY_STRING
 | 'REQUEST_URI'		Uses the REQUEST_URI
@@ -87,47 +87,64 @@ $config['url_suffix'] = '';
 */
 
 $languages = [
+    'sq' => 'albanian',
     'ar' => 'arabic',
+    'bs' => 'bosnian',
     'bu' => 'bulgarian',
     'ca' => 'catalan',
-    'zh' => 'chinese',
-    'hr' => 'croatian',
     'cs' => 'czech',
     'da' => 'danish',
-    'nl' => 'dutch',
-    'en' => 'english',
-    'et' => 'estonian',
-    'fi' => 'finnish',
-    'fr' => 'french',
     'de' => 'german',
     'el' => 'greek',
+    'en' => 'english',
+    'es' => 'spanish',
+    'et' => 'estonian',
+    'fa' => 'persian',
+    'fi' => 'finnish',
+    'fr' => 'french',
     'he' => 'hebrew',
     'hi' => 'hindi',
+    'hr' => 'croatian',
     'hu' => 'hungarian',
     'it' => 'italian',
     'ja' => 'japanese',
-    'fa' => 'persian',
     'lb' => 'luxembourgish',
+    'lt' => 'lithuanian',
+    'lv' => 'latvian',
     'mr' => 'marathi',
+    'nl' => 'dutch',
+    'no' => 'norwegian',
     'pl' => 'polish',
     'pt' => 'portuguese',
+    'pt-br' => 'portuguese-br',
     'ro' => 'romanian',
-    'ru' => 'russian',
     'rs' => 'serbian',
+    'ru' => 'russian',
     'sk' => 'slovak',
-    'es' => 'spanish',
+    'sl' => 'slovenian',
     'sv' => 'swedish',
     'th' => 'thai',
     'tr' => 'turkish',
+    'zh' => 'chinese',
+    'zh-tw' => 'traditional-chinese',
+    'uk' => 'ukrainian',
 ];
 
 $config['language_codes'] = $languages;
 
 $language_code = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2) : 'en';
 
-$config['language'] = isset($_SERVER['HTTP_ACCEPT_LANGUAGE'], $languages[$language_code])
-    ? $languages[$language_code]
-    : Config::LANGUAGE;
+// Validate language parameter to prevent injection - only accept known language values
+$requested_language = $_GET['language'] ?? null;
+if ($requested_language !== null && !in_array($requested_language, $languages, true)) {
+    $requested_language = null; // Invalid language, ignore it
+}
+
+$config['language'] =
+    $requested_language ??
+    (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'], $languages[$language_code])
+        ? $languages[$language_code]
+        : Config::LANGUAGE);
 
 $config['language_code'] = array_search($config['language'], $languages) ?: 'en';
 
@@ -142,7 +159,9 @@ $config['language_code'] = array_search($config['language'], $languages) ?: 'en'
 |
 */
 $config['available_languages'] = [
+    'albanian',
     'arabic',
+    'bosnian',
     'bulgarian',
     'catalan',
     'chinese',
@@ -161,8 +180,11 @@ $config['available_languages'] = [
     'hungarian',
     'italian',
     'japanese',
+    'latvian',
+    'lithuanian',
     'luxembourgish',
     'marathi',
+    'norwegian',
     'persian',
     'polish',
     'portuguese',
@@ -171,10 +193,13 @@ $config['available_languages'] = [
     'russian',
     'serbian',
     'slovak',
+    'slovenian',
     'spanish',
     'swedish',
     'thai',
+    'traditional-chinese',
     'turkish',
+    'ukrainian',
 ];
 
 /*
@@ -223,7 +248,7 @@ $config['subclass_prefix'] = 'EA_';
 | characters they will get a warning message.
 |
 | As a security measure you are STRONGLY encouraged to restrict URLs to
-| as few characters as possible.  By default only these are allowed: a-z 0-9~%.:_-
+| as few characters as possible.  By default, only these are allowed: a-z 0-9~%.:_-
 |
 | Leave blank to allow all characters -- but only if you are insane.
 |
@@ -326,8 +351,14 @@ $config['cache_path'] = __DIR__ . '/../../storage/cache/';
 | If you use the Encryption class or the Session class you
 | MUST set an encryption key.  See the user guide for info.
 |
+| IMPORTANT: For production, set a strong random key in your config.php
+| using: define('ENCRYPTION_KEY', 'your-random-32-character-string');
+|
 */
-$config['encryption_key'] = base64_encode(APPPATH);
+$config['encryption_key'] =
+    defined('ENCRYPTION_KEY') && !empty(ENCRYPTION_KEY)
+        ? ENCRYPTION_KEY
+        : hash('sha256', APPPATH . (defined('DB_PASSWORD') ? DB_PASSWORD : '') . php_uname(), true);
 
 /*
 |--------------------------------------------------------------------------
@@ -349,9 +380,9 @@ $config['encryption_key'] = base64_encode(APPPATH);
 */
 $config['sess_driver'] = 'files';
 $config['sess_cookie_name'] = 'ea_session';
-$config['sess_expiration'] = 7200;
+$config['sess_expiration'] = 604800; // 1 week
 $config['sess_save_path'] = __DIR__ . '/../../storage/sessions';
-$config['sess_match_ip'] = false;
+$config['sess_match_ip'] = true; // Enable IP matching for better session security
 $config['sess_time_to_update'] = 300;
 $config['sess_regenerate_destroy'] = true;
 
@@ -370,6 +401,8 @@ $config['cookie_prefix'] = '';
 $config['cookie_domain'] = '';
 $config['cookie_path'] = '/';
 $config['cookie_secure'] = strpos($config['base_url'], 'https') !== false;
+$config['cookie_httponly'] = true; // Prevent JavaScript access to cookies
+$config['cookie_samesite'] = 'Lax'; // CSRF protection for cookies
 
 /*
 |--------------------------------------------------------------------------
@@ -452,7 +485,7 @@ $config['proxy_ips'] = '';
 |--------------------------------------------------------------------------
 |
 | Toggle the rate limiting feature in your application. Using rate limiting
-| will control the number of requests a client can sent to the app.
+| will control the number of requests a client can send to the app.
 |
 */
 $config['rate_limiting'] = true;

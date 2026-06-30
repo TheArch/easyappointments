@@ -209,7 +209,7 @@ class Webhooks_model extends EA_Model
      *
      * @return array Returns an array of webhooks.
      */
-    public function search(string $keyword, int $limit = null, int $offset = null, string $order_by = null): array
+    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
     {
         $webhooks = $this->db
             ->select()
@@ -221,7 +221,7 @@ class Webhooks_model extends EA_Model
             ->group_end()
             ->limit($limit)
             ->offset($offset)
-            ->order_by($order_by)
+            ->order_by($this->quote_order_by($order_by))
             ->get()
             ->result_array();
 
@@ -230,6 +230,33 @@ class Webhooks_model extends EA_Model
         }
 
         return $webhooks;
+    }
+
+    /**
+     * Get webhooks as options for dropdowns.
+     *
+     * @param array|string|null $where Where conditions.
+     *
+     * @return array Returns an array of options with 'value' and 'label' keys.
+     */
+    public function to_options(array|string|null $where = null): array
+    {
+        if ($where !== null) {
+            $this->db->where($where);
+        }
+
+        $webhooks = $this->db->select('id, name')->from('webhooks')->order_by('name')->get()->result_array();
+
+        $options = [];
+
+        foreach ($webhooks as $webhook) {
+            $options[] = [
+                'value' => (int) $webhook['id'],
+                'label' => $webhook['name'],
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -243,17 +270,17 @@ class Webhooks_model extends EA_Model
      * @return array Returns an array of webhooks.
      */
     public function get(
-        array|string $where = null,
-        int $limit = null,
-        int $offset = null,
-        string $order_by = null,
+        array|string|null $where = null,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
     ): array {
         if ($where !== null) {
             $this->db->where($where);
         }
 
         if ($order_by !== null) {
-            $this->db->order_by($order_by);
+            $this->db->order_by($this->quote_order_by($order_by));
         }
 
         $webhooks = $this->db->get('webhooks', $limit, $offset)->result_array();
@@ -290,8 +317,8 @@ class Webhooks_model extends EA_Model
             'name' => $webhook['name'],
             'url' => $webhook['url'],
             'actions' => $webhook['actions'],
-            'secret_token' => $webhook['secret_token'],
-            'is_ssl_verified' => $webhook['is_ssl_verified'],
+            'secretToken' => $webhook['secret_token'],
+            'isSslVerified' => $webhook['is_ssl_verified'],
             'notes' => $webhook['notes'],
         ];
 
@@ -304,7 +331,7 @@ class Webhooks_model extends EA_Model
      * @param array $webhook API resource.
      * @param array|null $base Base webhook data to be overwritten with the provided values (useful for updates).
      */
-    public function api_decode(array &$webhook, array $base = null): void
+    public function api_decode(array &$webhook, ?array $base = null): void
     {
         $decoded_resource = $base ?: [];
 

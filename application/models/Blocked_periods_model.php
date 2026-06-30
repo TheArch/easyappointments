@@ -230,7 +230,7 @@ class Blocked_periods_model extends EA_Model
      *
      * @return array Returns an array of blocked periods.
      */
-    public function search(string $keyword, int $limit = null, int $offset = null, string $order_by = null): array
+    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
     {
         $blocked_periods = $this->db
             ->select()
@@ -241,7 +241,7 @@ class Blocked_periods_model extends EA_Model
             ->group_end()
             ->limit($limit)
             ->offset($offset)
-            ->order_by($order_by)
+            ->order_by($this->quote_order_by($order_by))
             ->get()
             ->result_array();
 
@@ -250,6 +250,38 @@ class Blocked_periods_model extends EA_Model
         }
 
         return $blocked_periods;
+    }
+
+    /**
+     * Get blocked periods as options for dropdowns.
+     *
+     * @param array|string|null $where Where conditions.
+     *
+     * @return array Returns an array of options with 'value' and 'label' keys.
+     */
+    public function to_options(array|string|null $where = null): array
+    {
+        if ($where !== null) {
+            $this->db->where($where);
+        }
+
+        $blocked_periods = $this->db
+            ->select('id, name')
+            ->from('blocked_periods')
+            ->order_by('name')
+            ->get()
+            ->result_array();
+
+        $options = [];
+
+        foreach ($blocked_periods as $blocked_period) {
+            $options[] = [
+                'value' => (int) $blocked_period['id'],
+                'label' => $blocked_period['name'],
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -263,17 +295,17 @@ class Blocked_periods_model extends EA_Model
      * @return array Returns an array of blocked periods.
      */
     public function get(
-        array|string $where = null,
-        int $limit = null,
-        int $offset = null,
-        string $order_by = null,
+        array|string|null $where = null,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
     ): array {
         if ($where !== null) {
             $this->db->where($where);
         }
 
         if ($order_by !== null) {
-            $this->db->order_by($order_by);
+            $this->db->order_by($this->quote_order_by($order_by));
         }
 
         $blocked_periods = $this->db->get('blocked_periods', $limit, $offset)->result_array();
@@ -322,7 +354,7 @@ class Blocked_periods_model extends EA_Model
      * @param array $blocked_period API resource.
      * @param array|null $base Base blocked-period data to be overwritten with the provided values (useful for updates).
      */
-    public function api_decode(array &$blocked_period, array $base = null): void
+    public function api_decode(array &$blocked_period, ?array $base = null): void
     {
         $decoded_resource = $base ?: [];
 

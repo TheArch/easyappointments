@@ -43,7 +43,7 @@ class Services_model extends EA_Model
         'description' => 'description',
         'location' => 'location',
         'color' => 'color',
-        'availabilitiesType' => 'availabilities_type',
+        'slotInterval' => 'slot_interval',
         'attendantsNumber' => 'attendants_number',
         'isPrivate' => 'is_private',
         'serviceCategoryId' => 'id_service_categories',
@@ -116,31 +116,9 @@ class Services_model extends EA_Model
             }
         }
 
-        // Availabilities type must have the correct value.
-        if (
-            $service['availabilities_type'] !== null &&
-            $service['availabilities_type'] !== AVAILABILITIES_TYPE_FLEXIBLE &&
-            $service['availabilities_type'] !== AVAILABILITIES_TYPE_FIXED
-        ) {
-            throw new InvalidArgumentException(
-                'Service availabilities type must be either ' .
-                    AVAILABILITIES_TYPE_FLEXIBLE .
-                    ' or ' .
-                    AVAILABILITIES_TYPE_FIXED .
-                    ' (given ' .
-                    $service['availabilities_type'] .
-                    ')',
-            );
-        }
-
-        // Validate the availabilities type value.
-        if (
-            !empty($service['availabilities_type']) &&
-            !in_array($service['availabilities_type'], [AVAILABILITIES_TYPE_FLEXIBLE, AVAILABILITIES_TYPE_FIXED])
-        ) {
-            throw new InvalidArgumentException(
-                'The provided availabilities type is invalid: ' . $service['availabilities_type'],
-            );
+        // Make sure the slot_interval value is valid.
+        if (!empty($service['slot_interval']) && (int) $service['slot_interval'] < 1) {
+            throw new InvalidArgumentException('The service slot interval must be at least 1 minute.');
         }
 
         // Validate the attendants number value.
@@ -165,11 +143,19 @@ class Services_model extends EA_Model
         $service['create_datetime'] = date('Y-m-d H:i:s');
         $service['update_datetime'] = date('Y-m-d H:i:s');
 
+        $provider_ids = $service['providers'] ?? [];
+
+        unset($service['providers']);
+
         if (!$this->db->insert('services', $service)) {
             throw new RuntimeException('Could not insert service.');
         }
 
-        return $this->db->insert_id();
+        $service_id = $this->db->insert_id();
+
+        $this->set_provider_ids($service_id, $provider_ids);
+
+        return $service_id;
     }
 
     /**
@@ -185,11 +171,62 @@ class Services_model extends EA_Model
     {
         $service['update_datetime'] = date('Y-m-d H:i:s');
 
+        $provider_ids = $service['providers'] ?? null;
+
+        unset($service['providers']);
+
         if (!$this->db->update('services', $service, ['id' => $service['id']])) {
             throw new RuntimeException('Could not update service.');
         }
 
+        if ($provider_ids !== null) {
+            $this->set_provider_ids($service['id'], $provider_ids);
+        }
+
         return $service['id'];
+    }
+
+    /**
+     * Get the service provider IDs.
+     *
+     * @param int $service_id Service ID.
+     *
+     * @return array Returns an array of provider IDs.
+     */
+    public function get_provider_ids(int $service_id): array
+    {
+        $service_provider_connections = $this->db
+            ->get_where('services_providers', ['id_services' => $service_id])
+            ->result_array();
+
+        $provider_ids = [];
+
+        foreach ($service_provider_connections as $service_provider_connection) {
+            $provider_ids[] = (int) $service_provider_connection['id_users'];
+        }
+
+        return $provider_ids;
+    }
+
+    /**
+     * Save the service provider IDs.
+     *
+     * @param int $service_id Service ID.
+     * @param array $provider_ids Provider IDs.
+     */
+    public function set_provider_ids(int $service_id, array $provider_ids): void
+    {
+        // Re-insert the service-provider connections.
+        $this->db->delete('services_providers', ['id_services' => $service_id]);
+
+        foreach ($provider_ids as $provider_id) {
+            $service_provider_connection = [
+                'id_services' => $service_id,
+                'id_users' => $provider_id,
+            ];
+
+            $this->db->insert('services_providers', $service_provider_connection);
+        }
     }
 
     /**
@@ -308,17 +345,17 @@ class Services_model extends EA_Model
      * @return array Returns an array of services.
      */
     public function get(
-        array|string $where = null,
-        int $limit = null,
-        int $offset = null,
-        string $order_by = null,
+        array|string|null $where = null,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
     ): array {
         if ($where !== null) {
             $this->db->where($where);
         }
 
         if ($order_by !== null) {
-            $this->db->order_by($order_by);
+            $this->db->order_by($this->quote_order_by($order_by));
         }
 
         $services = $this->db->get('services', $limit, $offset)->result_array();
@@ -350,7 +387,7 @@ class Services_model extends EA_Model
      *
      * @return array Returns an array of services.
      */
-    public function search(string $keyword, int $limit = null, int $offset = null, string $order_by = null): array
+    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
     {
         $services = $this->db
             ->select()
@@ -361,7 +398,7 @@ class Services_model extends EA_Model
             ->group_end()
             ->limit($limit)
             ->offset($offset)
-            ->order_by($order_by)
+            ->order_by($this->quote_order_by($order_by))
             ->get()
             ->result_array();
 
@@ -370,6 +407,33 @@ class Services_model extends EA_Model
         }
 
         return $services;
+    }
+
+    /**
+     * Get services as options for dropdowns.
+     *
+     * @param array|string|null $where Where conditions.
+     *
+     * @return array Returns an array of options with 'value' and 'label' keys.
+     */
+    public function to_options(array|string|null $where = null): array
+    {
+        if ($where !== null) {
+            $this->db->where($where);
+        }
+
+        $services = $this->db->select('id, name')->from('services')->order_by('name')->get()->result_array();
+
+        $options = [];
+
+        foreach ($services as $service) {
+            $options[] = [
+                'value' => (int) $service['id'],
+                'label' => $service['name'],
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -415,7 +479,7 @@ class Services_model extends EA_Model
             'currency' => $service['currency'],
             'description' => $service['description'],
             'location' => $service['location'],
-            'availabilitiesType' => $service['availabilities_type'],
+            'slotInterval' => (int) $service['slot_interval'],
             'attendantsNumber' => (int) $service['attendants_number'],
             'isPrivate' => (bool) $service['is_private'],
             'serviceCategoryId' =>
@@ -431,7 +495,7 @@ class Services_model extends EA_Model
      * @param array $service API resource.
      * @param array|null $base Base service data to be overwritten with the provided values (useful for updates).
      */
-    public function api_decode(array &$service, array $base = null): void
+    public function api_decode(array &$service, ?array $base = null): void
     {
         $decoded_resource = $base ?: [];
 
@@ -451,6 +515,10 @@ class Services_model extends EA_Model
             $decoded_resource['price'] = $service['price'];
         }
 
+        if (array_key_exists('color', $service)) {
+            $decoded_resource['color'] = $service['color'];
+        }
+
         if (array_key_exists('currency', $service)) {
             $decoded_resource['currency'] = $service['currency'];
         }
@@ -463,8 +531,8 @@ class Services_model extends EA_Model
             $decoded_resource['location'] = $service['location'];
         }
 
-        if (array_key_exists('availabilitiesType', $service)) {
-            $decoded_resource['availabilities_type'] = $service['availabilitiesType'];
+        if (array_key_exists('slotInterval', $service)) {
+            $decoded_resource['slot_interval'] = $service['slotInterval'];
         }
 
         if (array_key_exists('attendantsNumber', $service)) {

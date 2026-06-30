@@ -2,16 +2,16 @@
 
 <?php section('content'); ?>
 
-<div id="google-analytics-settings-page" class="container backend-page">
+<div id="google-analytics-settings-page" class="container backend-page py-3">
     <div class="row">
-        <div class="col-sm-3 offset-sm-1">
+        <div class="col-sm-3">
             <?php component('settings_nav'); ?>
         </div>
-        <div id="google-analytics-settings" class="col-sm-6">
+        <div id="google-analytics-settings" class="col-sm-9">
             <form>
                 <fieldset>
                     <div class="d-flex justify-content-between align-items-center border-bottom mb-4 py-2">
-                        <h4 class="text-black-50 mb-0 fw-light">
+                        <h4 class="mb-0 fw-light">
                             <?= lang('google_analytics') ?>
                         </h4>
 
@@ -36,7 +36,7 @@
                                 <label class="form-label" for="google-analytics-code">
                                     <?= lang('google_analytics_code') ?>
                                 </label>
-                                <input id="google-analytics-code" placeholder="UA-XXXXXXXX-XX or G-XXXXXXXXXX"
+                                <input id="google-analytics-code" placeholder="G-XXXXXXXXXX"
                                        class="form-control" data-field="google_analytics_code">
                                 <div class="form-text text-muted">
                                     <small>
@@ -47,7 +47,6 @@
                         </div>
                     </div>
 
-                    <?php slot('after_primary_appointment_fields'); ?>
                 </fieldset>
             </form>
         </div>
@@ -58,7 +57,6 @@
 
 <?php section('scripts'); ?>
 
-<script src="<?= asset_url('assets/js/utils/url.js') ?>"></script>
 <script src="<?= asset_url('assets/js/http/google_analytics_settings_http_client.js') ?>"></script>
 <script src="<?= asset_url('assets/js/pages/google_analytics_settings.js') ?>"></script>
 

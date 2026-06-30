@@ -32,7 +32,7 @@ if (!function_exists('setting')) {
      *
      * @throws InvalidArgumentException
      */
-    function setting(array|string $key = null, mixed $default = null): mixed
+    function setting(array|string|null $key = null, mixed $default = null): mixed
     {
         /** @var EA_Controller $CI */
         $CI = &get_instance();
@@ -45,11 +45,7 @@ if (!function_exists('setting')) {
 
         if (is_array($key)) {
             foreach ($key as $name => $value) {
-                $setting = $CI->settings_model
-                    ->query()
-                    ->where('name', $name)
-                    ->get()
-                    ->row_array();
+                $setting = $CI->settings_model->query()->where('name', $name)->get()->row_array();
 
                 if (empty($setting)) {
                     $setting = [
@@ -65,11 +61,7 @@ if (!function_exists('setting')) {
             return null;
         }
 
-        $setting = $CI->settings_model
-            ->query()
-            ->where('name', $key)
-            ->get()
-            ->row_array();
+        $setting = $CI->settings_model->query()->where('name', $key)->get()->row_array();
 
         return $setting['value'] ?? $default;
     }

@@ -22,6 +22,7 @@ App.Http.Booking = (function () {
     const $selectProvider = $('#select-provider');
     const $availableHours = $('#available-hours');
     const $captchaHint = $('#captcha-hint');
+    const $passHint = $('#pass-hint');
     const $captchaTitle = $('.captcha-title');
 
     const MONTH_SEARCH_LIMIT = 2; // Months in the future
@@ -156,11 +157,44 @@ App.Http.Booking = (function () {
      */
     function registerAppointment() {
         const $captchaText = $('.captcha-text');
+        const $altchaPayload = $('#altcha-payload');
+        const $altchaHint = $('#altcha-hint');
 
+        // Validate CAPTCHA or ALTCHA
         if ($captchaText.length > 0) {
             $captchaText.removeClass('is-invalid');
             if ($captchaText.val() === '') {
                 $captchaText.addClass('is-invalid');
+                return;
+            }
+        }
+        
+        if ($altchaPayload.length > 0 && $altchaPayload.val() === '') {
+            $altchaHint.text(lang('altcha_verification_failed')).fadeTo(400, 1);
+            
+            setTimeout(() => {
+                $altchaHint.fadeTo(400, 0);
+            }, 3000);
+            
+            return;
+        }
+
+        // KUM: validate the Helios login-confirmation fields when they are visible.
+        const $userText = $('.user-text');
+        const $passText = $('.pass-text');
+
+        if ($userText.is(':visible') && $userText.length > 0) {
+            $userText.removeClass('is-invalid');
+            if ($userText.val() === '') {
+                $userText.addClass('is-invalid');
+                return;
+            }
+        }
+
+        if ($passText.is(':visible') && $passText.length > 0) {
+            $passText.removeClass('is-invalid');
+            if ($passText.val() === '') {
+                $passText.addClass('is-invalid');
                 return;
             }
         }
@@ -174,6 +208,19 @@ App.Http.Booking = (function () {
 
         if ($captchaText.length > 0) {
             data.captcha = $captchaText.val();
+        }
+
+        // KUM: send the Helios login credentials when provided.
+        if ($userText.length > 0) {
+            data.user = $userText.val();
+        }
+
+        if ($passText.length > 0) {
+            data.pass = $passText.val();
+        }
+        
+        if ($altchaPayload.length > 0 && $altchaPayload.val()) {
+            data.altcha_payload = $altchaPayload.val();
         }
 
         if (vars('manage_mode')) {
@@ -202,6 +249,14 @@ App.Http.Booking = (function () {
             },
         })
             .done((response) => {
+                // KUM: handle failed Helios LDAP verification.
+                if (response.ldap_verification === false) {
+                    $passHint.text(lang('wrong_username_or_password')).fadeTo(400, 1);
+                    $passText.addClass('is-invalid');
+                    $userText.addClass('is-invalid');
+                    return false;
+                }
+
                 if (response.captcha_verification === false) {
                     $captchaHint.text(lang('captcha_is_wrong')).fadeTo(400, 1);
 
@@ -212,6 +267,21 @@ App.Http.Booking = (function () {
                     $captchaTitle.find('button').trigger('click');
 
                     $captchaText.addClass('is-invalid');
+
+                    return false;
+                }
+                
+                if (response.altcha_verification === false) {
+                    $altchaHint.text(lang('altcha_verification_failed')).fadeTo(400, 1);
+
+                    setTimeout(() => {
+                        $altchaHint.fadeTo(400, 0);
+                    }, 3000);
+                    
+                    // Reset ALTCHA widget
+                    if (App.Utils.Altcha) {
+                        App.Utils.Altcha.reset('altcha-widget');
+                    }
 
                     return false;
                 }
@@ -284,7 +354,7 @@ App.Http.Booking = (function () {
 
                         while (startOfMonthMoment.isSameOrBefore(endOfMonthMoment)) {
                             unavailableDates.push(startOfMonthMoment.format('YYYY-MM-DD'));
-                            startOfMonthMoment.add(monthChangeStep, 'days'); // Move to the next day
+                            startOfMonthMoment.add(Math.abs(monthChangeStep), 'days'); // Move to the next day
                         }
 
                         applyUnavailableDates(unavailableDates, searchedMonthStart, true);
@@ -338,7 +408,7 @@ App.Http.Booking = (function () {
         // Grey out unavailable dates.
         $selectDate[0]._flatpickr.set(
             'disable',
-            unavailableDates.map((unavailableDate) => new Date(unavailableDate)),
+            unavailableDates.map((unavailableDate) => new Date(unavailableDate + 'T00:00')),
         );
 
         if (setDate && !vars('manage_mode')) {

@@ -91,12 +91,7 @@ class Admins_model extends EA_Model
         }
 
         // Make sure all required fields are provided.
-        if (
-            empty($admin['first_name']) ||
-            empty($admin['last_name']) ||
-            empty($admin['email']) ||
-            empty($admin['phone_number'])
-        ) {
+        if (empty($admin['first_name']) || empty($admin['last_name']) || empty($admin['email'])) {
             throw new InvalidArgumentException('Not all required fields are provided: ' . print_r($admin, true));
         }
 
@@ -168,7 +163,7 @@ class Admins_model extends EA_Model
      *
      * @return bool Returns the validation result.
      */
-    public function validate_username(string $username, int $admin_id = null): bool
+    public function validate_username(string $username, ?int $admin_id = null): bool
     {
         if (!empty($admin_id)) {
             $this->db->where('id_users !=', $admin_id);
@@ -193,10 +188,10 @@ class Admins_model extends EA_Model
      * @return array Returns an array of admins.
      */
     public function get(
-        array|string $where = null,
-        int $limit = null,
-        int $offset = null,
-        string $order_by = null,
+        array|string|null $where = null,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
     ): array {
         $role_id = $this->get_admin_role_id();
 
@@ -205,7 +200,7 @@ class Admins_model extends EA_Model
         }
 
         if ($order_by !== null) {
-            $this->db->order_by($order_by);
+            $this->db->order_by($this->quote_order_by($order_by));
         }
 
         $admins = $this->db->get_where('users', ['id_roles' => $role_id], $limit, $offset)->result_array();
@@ -232,6 +227,22 @@ class Admins_model extends EA_Model
         }
 
         return $role['id'];
+    }
+
+    /**
+     * Get the admin settings.
+     *
+     * @param int $admin_id Admin ID.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function get_settings(int $admin_id): array
+    {
+        $settings = $this->db->get_where('user_settings', ['id_users' => $admin_id])->row_array();
+
+        unset($settings['id_users'], $settings['password'], $settings['salt']);
+
+        return $settings;
     }
 
     /**
@@ -291,22 +302,6 @@ class Admins_model extends EA_Model
         foreach ($settings as $name => $value) {
             $this->set_setting($admin_id, $name, $value);
         }
-    }
-
-    /**
-     * Get the admin settings.
-     *
-     * @param int $admin_id Admin ID.
-     *
-     * @throws InvalidArgumentException
-     */
-    public function get_settings(int $admin_id): array
-    {
-        $settings = $this->db->get_where('user_settings', ['id_users' => $admin_id])->row_array();
-
-        unset($settings['id_users'], $settings['password'], $settings['salt']);
-
-        return $settings;
     }
 
     /**
@@ -489,7 +484,7 @@ class Admins_model extends EA_Model
      *
      * @return array Returns an array of admins.
      */
-    public function search(string $keyword, int $limit = null, int $offset = null, string $order_by = null): array
+    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
     {
         $role_id = $this->get_admin_role_id();
 
@@ -512,7 +507,7 @@ class Admins_model extends EA_Model
             ->group_end()
             ->limit($limit)
             ->offset($offset)
-            ->order_by($order_by)
+            ->order_by($this->quote_order_by($order_by))
             ->get()
             ->result_array();
 
@@ -522,6 +517,41 @@ class Admins_model extends EA_Model
         }
 
         return $admins;
+    }
+
+    /**
+     * Get admins as options for dropdowns.
+     *
+     * @param array|string|null $where Where conditions.
+     *
+     * @return array Returns an array of options with 'value' and 'label' keys.
+     */
+    public function to_options(array|string|null $where = null): array
+    {
+        $role_id = $this->get_admin_role_id();
+
+        if ($where !== null) {
+            $this->db->where($where);
+        }
+
+        $admins = $this->db
+            ->select('id, first_name, last_name')
+            ->from('users')
+            ->where('id_roles', $role_id)
+            ->order_by('first_name, last_name')
+            ->get()
+            ->result_array();
+
+        $options = [];
+
+        foreach ($admins as $admin) {
+            $options[] = [
+                'value' => (int) $admin['id'],
+                'label' => trim($admin['first_name'] . ' ' . $admin['last_name']),
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -575,7 +605,7 @@ class Admins_model extends EA_Model
      * @param array $admin API resource.
      * @param array|null $base Base admin data to be overwritten with the provided values (useful for updates).
      */
-    public function api_decode(array &$admin, array $base = null): void
+    public function api_decode(array &$admin, ?array $base = null): void
     {
         $decoded_resource = $base ?? [];
 

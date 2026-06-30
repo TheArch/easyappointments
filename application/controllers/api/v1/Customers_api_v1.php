@@ -26,6 +26,7 @@ class Customers_api_v1 extends EA_Controller
         parent::__construct();
 
         $this->load->library('api');
+        $this->load->library('webhooks_client');
 
         $this->api->auth();
 
@@ -77,9 +78,15 @@ class Customers_api_v1 extends EA_Controller
      *
      * @param int|null $id Customer ID.
      */
-    public function show(int $id = null): void
+    public function show(?int $id = null): void
     {
         try {
+            // Validate ID is a positive integer
+            if (empty($id) || $id <= 0) {
+                response('', 400);
+                return;
+            }
+
             $occurrences = $this->customers_model->get(['id' => $id]);
 
             if (empty($occurrences)) {
@@ -122,6 +129,8 @@ class Customers_api_v1 extends EA_Controller
 
             $created_customer = $this->customers_model->find($customer_id);
 
+            $this->webhooks_client->trigger(WEBHOOK_CUSTOMER_SAVE, $created_customer);
+
             $this->customers_model->api_encode($created_customer);
 
             json_response($created_customer, 201);
@@ -156,6 +165,8 @@ class Customers_api_v1 extends EA_Controller
 
             $updated_customer = $this->customers_model->find($customer_id);
 
+            $this->webhooks_client->trigger(WEBHOOK_CUSTOMER_SAVE, $updated_customer);
+
             $this->customers_model->api_encode($updated_customer);
 
             json_response($updated_customer);
@@ -172,6 +183,12 @@ class Customers_api_v1 extends EA_Controller
     public function destroy(int $id): void
     {
         try {
+            // Validate ID is a positive integer
+            if ($id <= 0) {
+                response('', 400);
+                return;
+            }
+
             $occurrences = $this->customers_model->get(['id' => $id]);
 
             if (empty($occurrences)) {
@@ -180,7 +197,11 @@ class Customers_api_v1 extends EA_Controller
                 return;
             }
 
+            $deleted_customer = $occurrences[0];
+
             $this->customers_model->delete($id);
+
+            $this->webhooks_client->trigger(WEBHOOK_CUSTOMER_DELETE, $deleted_customer);
 
             response('', 204);
         } catch (Throwable $e) {

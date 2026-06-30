@@ -22,6 +22,8 @@ class Service_categories extends EA_Controller
 {
     public array $allowed_service_category_fields = ['id', 'name', 'description'];
 
+    public array $optional_service_category_fields = [];
+
     /**
      * Service-categories constructor.
      */
@@ -38,13 +40,15 @@ class Service_categories extends EA_Controller
     }
 
     /**
-     * Render the backend service-categories page.
+     * Render the backend service categories page.
      *
-     * On this page admin users will be able to manage service-categories, which are eventually selected by customers during the
+     * On this page admin users will be able to manage service categories, which are eventually selected by customers during the
      * booking process.
      */
     public function index(): void
     {
+        method('get');
+
         session(['dest_url' => site_url('service_categories')]);
 
         $user_id = session('user_id');
@@ -78,14 +82,21 @@ class Service_categories extends EA_Controller
     }
 
     /**
-     * Filter service-categories by the provided keyword.
+     * Filter service categories by the provided keyword.
      */
     public function search(): void
     {
         try {
+            method('post');
+
             if (cannot('view', PRIV_SERVICES)) {
                 abort(403, 'Forbidden');
             }
+
+            check('keyword', 'string|null');
+            check('order_by', 'string|null');
+            check('limit', 'numeric|null');
+            check('offset', 'numeric|null');
 
             $keyword = request('keyword', '');
 
@@ -109,13 +120,19 @@ class Service_categories extends EA_Controller
     public function store(): void
     {
         try {
+            method('post');
+
             if (cannot('add', PRIV_SERVICES)) {
                 abort(403, 'Forbidden');
             }
 
+            check('service_category', 'array');
+
             $service_category = request('service_category');
 
             $this->service_categories_model->only($service_category, $this->allowed_service_category_fields);
+
+            $this->service_categories_model->optional($service_category, $this->optional_service_category_fields);
 
             $service_category_id = $this->service_categories_model->save($service_category);
 
@@ -138,11 +155,24 @@ class Service_categories extends EA_Controller
     public function find(): void
     {
         try {
+            method('get');
+
             if (cannot('view', PRIV_SERVICES)) {
                 abort(403, 'Forbidden');
             }
 
+            check('service_category_id', 'numeric');
+
             $service_category_id = request('service_category_id');
+
+            // Validate service_category_id is a positive integer
+            if (
+                empty($service_category_id) ||
+                !filter_var($service_category_id, FILTER_VALIDATE_INT) ||
+                $service_category_id <= 0
+            ) {
+                throw new InvalidArgumentException('Invalid service category ID provided.');
+            }
 
             $service_category = $this->service_categories_model->find($service_category_id);
 
@@ -158,13 +188,19 @@ class Service_categories extends EA_Controller
     public function update(): void
     {
         try {
+            method('post');
+
             if (cannot('edit', PRIV_SERVICES)) {
                 abort(403, 'Forbidden');
             }
 
+            check('service_category', 'array');
+
             $service_category = request('service_category');
 
             $this->service_categories_model->only($service_category, $this->allowed_service_category_fields);
+
+            $this->service_categories_model->optional($service_category, $this->optional_service_category_fields);
 
             $service_category_id = $this->service_categories_model->save($service_category);
 
@@ -187,11 +223,24 @@ class Service_categories extends EA_Controller
     public function destroy(): void
     {
         try {
+            method('post');
+
             if (cannot('delete', PRIV_SERVICES)) {
                 abort(403, 'Forbidden');
             }
 
+            check('service_category_id', 'numeric');
+
             $service_category_id = request('service_category_id');
+
+            // Validate service_category_id is a positive integer
+            if (
+                empty($service_category_id) ||
+                !filter_var($service_category_id, FILTER_VALIDATE_INT) ||
+                $service_category_id <= 0
+            ) {
+                throw new InvalidArgumentException('Invalid service category ID provided.');
+            }
 
             $service_category = $this->service_categories_model->find($service_category_id);
 

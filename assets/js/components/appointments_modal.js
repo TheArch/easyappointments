@@ -36,6 +36,7 @@ App.Components.AppointmentsModal = (function () {
     const $saveAppointment = $('#save-appointment');
     const $appointmentId = $('#appointment-id');
     const $appointmentLocation = $('#appointment-location');
+    const $appointmentMeetingLink = $('#appointment-meeting-link');
     const $appointmentStatus = $('#appointment-status');
     const $appointmentColor = $('#appointment-color');
     const $appointmentNotes = $('#appointment-notes');
@@ -80,7 +81,7 @@ App.Components.AppointmentsModal = (function () {
          */
         $saveAppointment.on('click', () => {
             // Before doing anything the appointment data need to be validated.
-            if (!validateAppointmentForm()) {
+            if (!App.Components.AppointmentsModal.validateAppointmentForm()) {
                 return;
             }
 
@@ -99,6 +100,7 @@ App.Components.AppointmentsModal = (function () {
                 start_datetime: startDatetime,
                 end_datetime: endDatetime,
                 location: $appointmentLocation.val(),
+                meeting_link: $appointmentMeetingLink.val(),
                 color: App.Components.ColorSelection.getColor($appointmentColor),
                 status: $appointmentStatus.val(),
                 notes: $appointmentNotes.val(),
@@ -152,8 +154,74 @@ App.Components.AppointmentsModal = (function () {
                 $appointmentsModal.find('.modal-body').scrollTop(0);
             };
 
-            // Save appointment data.
-            App.Http.Calendar.saveAppointment(appointment, customer, successCallback, errorCallback);
+            // Check if this is an update (appointment has an ID)
+            const isUpdate = Boolean(appointment.id);
+
+            if (isUpdate) {
+                // Show confirmation dialog for notification preference
+                App.Utils.Message.show(lang('appointment_update'), lang('notify_users_on_update_question'), [
+                    {
+                        text: lang('no'),
+                        click: (event, messageModal) => {
+                            messageModal.hide();
+                            App.Http.Calendar.saveAppointmentWithConflictHandling(
+                                appointment,
+                                customer,
+                                successCallback,
+                                errorCallback,
+                                false,
+                            );
+                        },
+                    },
+                    {
+                        text: lang('yes'),
+                        click: (event, messageModal) => {
+                            messageModal.hide();
+                            App.Http.Calendar.saveAppointmentWithConflictHandling(
+                                appointment,
+                                customer,
+                                successCallback,
+                                errorCallback,
+                                true,
+                            );
+                        },
+                    },
+                ]);
+            } else {
+                // New appointment - ask whether to notify users
+                App.Utils.Message.show(
+                    lang('new_appointment_title'),
+                    lang('notify_users_on_create_question'),
+                    [
+                        {
+                            text: lang('no'),
+                            click: (event, messageModal) => {
+                                messageModal.hide();
+                                App.Http.Calendar.saveAppointmentWithConflictHandling(
+                                    appointment,
+                                    customer,
+                                    successCallback,
+                                    errorCallback,
+                                    false,
+                                );
+                            },
+                        },
+                        {
+                            text: lang('yes'),
+                            click: (event, messageModal) => {
+                                messageModal.hide();
+                                App.Http.Calendar.saveAppointmentWithConflictHandling(
+                                    appointment,
+                                    customer,
+                                    successCallback,
+                                    errorCallback,
+                                    true,
+                                );
+                            },
+                        },
+                    ],
+                );
+            }
         });
 
         /**
@@ -165,7 +233,7 @@ App.Components.AppointmentsModal = (function () {
         $insertAppointment.on('click', () => {
             $('.popover').remove();
 
-            resetModal();
+            App.Components.AppointmentsModal.resetModal();
 
             // Set the selected filter item and find the next appointment time as the default modal values.
             if ($selectFilterItem.find('option:selected').attr('type') === 'provider') {
@@ -225,7 +293,7 @@ App.Components.AppointmentsModal = (function () {
          */
         $selectCustomer.on('click', (event) => {
             if (!$existingCustomersList.is(':visible')) {
-                $(event.target).find('span').text(lang('hide'));
+                $(event.currentTarget).find('span').text(lang('hide'));
                 $existingCustomersList.empty();
                 $existingCustomersList.slideDown('slow');
                 $filterExistingCustomers.fadeIn('slow').val('');
@@ -239,7 +307,7 @@ App.Components.AppointmentsModal = (function () {
             } else {
                 $existingCustomersList.slideUp('slow');
                 $filterExistingCustomers.fadeOut('slow');
-                $(event.target).find('span').text(lang('select'));
+                $(event.currentTarget).find('span').text(lang('select'));
             }
         });
 
@@ -366,7 +434,7 @@ App.Components.AppointmentsModal = (function () {
             });
 
             if (service?.color) {
-                App.Components.ColorSelection.getColor($appointmentColor, service.color);
+                App.Components.ColorSelection.setColor($appointmentColor, service.color);
             }
 
             const duration = service ? service.duration : 60;
@@ -445,6 +513,7 @@ App.Components.AppointmentsModal = (function () {
         // Empty form fields.
         $appointmentsModal.find('input, textarea').val('');
         $appointmentsModal.find('.modal-message').addClass('.d-none');
+        $appointmentsModal.find('.is-invalid').removeClass('is-invalid');
 
         const defaultStatusValue = $appointmentStatus.find('option:first').val();
         $appointmentStatus.val(defaultStatusValue);
@@ -510,6 +579,7 @@ App.Components.AppointmentsModal = (function () {
 
         App.Utils.UI.initializeDateTimePicker($endDatetime);
         App.Utils.UI.setDateTimePickerValue($endDatetime, endDatetime);
+        $appointmentsModal.find('.modal-message').removeClass('alert-danger').text('').addClass('d-none');
     }
 
     /**
@@ -580,5 +650,6 @@ App.Components.AppointmentsModal = (function () {
 
     return {
         resetModal,
+        validateAppointmentForm,
     };
 })();

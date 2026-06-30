@@ -93,12 +93,7 @@ class Providers_model extends EA_Model
         }
 
         // Make sure all required fields are provided.
-        if (
-            empty($provider['first_name']) ||
-            empty($provider['last_name']) ||
-            empty($provider['email']) ||
-            empty($provider['phone_number'])
-        ) {
+        if (empty($provider['first_name']) || empty($provider['last_name']) || empty($provider['email'])) {
             throw new InvalidArgumentException('Not all required fields are provided: ' . print_r($provider, true));
         }
 
@@ -182,7 +177,7 @@ class Providers_model extends EA_Model
      *
      * @return bool Returns the validation result.
      */
-    public function validate_username(string $username, int $provider_id = null): bool
+    public function validate_username(string $username, ?int $provider_id = null): bool
     {
         if (!empty($provider_id)) {
             $this->db->where('id_users !=', $provider_id);
@@ -207,10 +202,10 @@ class Providers_model extends EA_Model
      * @return array Returns an array of providers.
      */
     public function get(
-        array|string $where = null,
-        int $limit = null,
-        int $offset = null,
-        string $order_by = null,
+        array|string|null $where = null,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
     ): array {
         $role_id = $this->get_provider_role_id();
 
@@ -219,7 +214,7 @@ class Providers_model extends EA_Model
         }
 
         if ($order_by !== null) {
-            $this->db->order_by($order_by);
+            $this->db->order_by($this->quote_order_by($order_by));
         }
 
         $providers = $this->db->get_where('users', ['id_roles' => $role_id], $limit, $offset)->result_array();
@@ -247,6 +242,47 @@ class Providers_model extends EA_Model
         }
 
         return $role['id'];
+    }
+
+    /**
+     * Get the provider settings.
+     *
+     * @param int $provider_id Provider ID.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function get_settings(int $provider_id): array
+    {
+        $settings = $this->db->get_where('user_settings', ['id_users' => $provider_id])->row_array();
+
+        unset($settings['id_users'], $settings['password'], $settings['salt']);
+
+        // Get working plan exceptions from the new table in array format
+        $this->load->model('working_plan_exceptions_model');
+        $exceptions = $this->working_plan_exceptions_model->get_all_by_provider($provider_id);
+        $settings['working_plan_exceptions'] = json_encode($exceptions);
+
+        return $settings;
+    }
+
+    /**
+     * Get the provider service IDs.
+     *
+     * @param int $provider_id Provider ID.
+     */
+    public function get_service_ids(int $provider_id): array
+    {
+        $service_provider_connections = $this->db
+            ->get_where('services_providers', ['id_users' => $provider_id])
+            ->result_array();
+
+        $service_ids = [];
+
+        foreach ($service_provider_connections as $service_provider_connection) {
+            $service_ids[] = (int) $service_provider_connection['id_services'];
+        }
+
+        return $service_ids;
     }
 
     /**
@@ -306,37 +342,44 @@ class Providers_model extends EA_Model
         }
 
         foreach ($settings as $name => $value) {
-            // Sort working plans exceptions in descending order that they are easier to modify later on.
+            // Working plan exceptions are now stored in a separate table
             if ($name === 'working_plan_exceptions') {
-                $value = json_decode($value, true);
+                $this->load->model('working_plan_exceptions_model');
 
-                if (!$value) {
-                    $value = [];
+                $exceptions = json_decode($value, true);
+
+                if (!$exceptions) {
+                    $exceptions = [];
                 }
 
-                krsort($value);
+                // Get existing exception IDs for this provider
+                $existing_exceptions = $this->db
+                    ->select('id')
+                    ->from('working_plan_exceptions')
+                    ->where('id_users_provider', $provider_id)
+                    ->get()
+                    ->result_array();
 
-                $value = json_encode(empty($value) ? new stdClass() : $value);
+                $existing_ids = array_column($existing_exceptions, 'id');
+                $new_ids = [];
+
+                // Save or update exceptions
+                foreach ($exceptions as $exception) {
+                    $exception_id = $this->save_working_plan_exception($provider_id, $exception);
+                    $new_ids[] = $exception_id;
+                }
+
+                // Delete exceptions that were not in the new list
+                $ids_to_delete = array_diff($existing_ids, $new_ids);
+                if (!empty($ids_to_delete)) {
+                    $this->db->where_in('id', $ids_to_delete)->delete('working_plan_exceptions');
+                }
+
+                continue;
             }
 
             $this->set_setting($provider_id, $name, $value);
         }
-    }
-
-    /**
-     * Get the provider settings.
-     *
-     * @param int $provider_id Provider ID.
-     *
-     * @throws InvalidArgumentException
-     */
-    public function get_settings(int $provider_id): array
-    {
-        $settings = $this->db->get_where('user_settings', ['id_users' => $provider_id])->row_array();
-
-        unset($settings['id_users'], $settings['password'], $settings['salt']);
-
-        return $settings;
     }
 
     /**
@@ -418,26 +461,6 @@ class Providers_model extends EA_Model
     }
 
     /**
-     * Get the provider service IDs.
-     *
-     * @param int $provider_id Provider ID.
-     */
-    public function get_service_ids(int $provider_id): array
-    {
-        $service_provider_connections = $this->db
-            ->get_where('services_providers', ['id_users' => $provider_id])
-            ->result_array();
-
-        $service_ids = [];
-
-        foreach ($service_provider_connections as $service_provider_connection) {
-            $service_ids[] = (int) $service_provider_connection['id_services'];
-        }
-
-        return $service_ids;
-    }
-
-    /**
      * Remove an existing provider from the database.
      *
      * @param int $provider_id Provider ID.
@@ -513,34 +536,37 @@ class Providers_model extends EA_Model
      * Save a new or existing working plan exception.
      *
      * @param int $provider_id Provider ID.
-     * @param string $date Working plan exception date (in YYYY-MM-DD format).
-     * @param array|null $working_plan_exception Associative array with the working plan exception data.
+     * @param array $working_plan_exception Associative array with the working plan exception data (startDate, endDate, startTime, endTime, breaks, id).
+     *
+     * @return int Returns the exception ID.
      *
      * @throws Exception
      */
-    public function save_working_plan_exception(
-        int $provider_id,
-        string $date,
-        array $working_plan_exception = null,
-    ): void {
+    public function save_working_plan_exception(int $provider_id, array $working_plan_exception): int
+    {
         // Validate the working plan exception data.
+        $start_date = $working_plan_exception['startDate'] ?? null;
+        $end_date = $working_plan_exception['endDate'] ?? $start_date;
+        $start_time = $working_plan_exception['startTime'] ?? null;
+        $end_time = $working_plan_exception['endTime'] ?? null;
+        $breaks = $working_plan_exception['breaks'] ?? [];
+        $id = $working_plan_exception['id'] ?? null;
 
-        if (
-            !empty($working_plan_exception) &&
-            (empty($working_plan_exception['start']) || empty($working_plan_exception['end']))
-        ) {
-            throw new InvalidArgumentException(
-                'Empty start and/or end time provided: ' . json_encode($working_plan_exception),
-            );
+        if (empty($start_date) || empty($end_date)) {
+            throw new InvalidArgumentException('Start date and end date are required for working plan exception.');
         }
 
-        if (!empty($working_plan_exception['start']) && !empty($working_plan_exception['end'])) {
-            $start = date('H:i', strtotime($working_plan_exception['start']));
+        if (strtotime($start_date) > strtotime($end_date)) {
+            throw new InvalidArgumentException('Working plan exception start date must be before or equal to end date.');
+        }
 
-            $end = date('H:i', strtotime($working_plan_exception['end']));
+        // If start_time and end_time are provided, validate them
+        if (!empty($start_time) && !empty($end_time)) {
+            $start = date('H:i', strtotime($start_time));
+            $end = date('H:i', strtotime($end_time));
 
             if ($start > $end) {
-                throw new InvalidArgumentException('Working plan exception start date must be before the end date.');
+                throw new InvalidArgumentException('Working plan exception start time must be before end time.');
             }
         }
 
@@ -554,20 +580,22 @@ class Providers_model extends EA_Model
             throw new InvalidArgumentException('Provider ID was not found in the database: ' . $provider_id);
         }
 
-        $provider = $this->find($provider_id);
+        $this->load->model('working_plan_exceptions_model');
 
-        // Store the working plan exception.
-        $working_plan_exceptions = json_decode($provider['settings']['working_plan_exceptions'], true);
+        $exception_data = [
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+            'id_users_provider' => $provider_id,
+            'start_time' => !empty($start_time) ? date('H:i', strtotime($start_time)) : null,
+            'end_time' => !empty($end_time) ? date('H:i', strtotime($end_time)) : null,
+            'breaks' => !empty($breaks) ? json_encode($breaks) : null,
+        ];
 
-        if (is_array($working_plan_exception) && !isset($working_plan_exception['breaks'])) {
-            $working_plan_exception['breaks'] = [];
+        if ($id) {
+            $exception_data['id'] = $id;
         }
 
-        $working_plan_exceptions[$date] = $working_plan_exception;
-
-        $provider['settings']['working_plan_exceptions'] = json_encode($working_plan_exceptions);
-
-        $this->update($provider);
+        return $this->working_plan_exceptions_model->save($exception_data);
     }
 
     /**
@@ -606,21 +634,9 @@ class Providers_model extends EA_Model
      */
     public function delete_working_plan_exception(int $provider_id, string $date): void
     {
-        $provider = $this->find($provider_id);
+        $this->load->model('working_plan_exceptions_model');
 
-        $working_plan_exceptions = json_decode($provider['settings']['working_plan_exceptions'], true);
-
-        if (!array_key_exists($date, $working_plan_exceptions)) {
-            return; // The selected date does not exist in provider's settings.
-        }
-
-        unset($working_plan_exceptions[$date]);
-
-        $provider['settings']['working_plan_exceptions'] = empty($working_plan_exceptions)
-            ? '{}'
-            : json_encode($working_plan_exceptions);
-
-        $this->update($provider);
+        $this->working_plan_exceptions_model->delete_by_provider_and_date($provider_id, $date);
     }
 
     /**
@@ -678,7 +694,7 @@ class Providers_model extends EA_Model
      *
      * @return array Returns an array of providers.
      */
-    public function search(string $keyword, int $limit = null, int $offset = null, string $order_by = null): array
+    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
     {
         $role_id = $this->get_provider_role_id();
 
@@ -701,7 +717,7 @@ class Providers_model extends EA_Model
             ->group_end()
             ->limit($limit)
             ->offset($offset)
-            ->order_by($order_by)
+            ->order_by($this->quote_order_by($order_by))
             ->get()
             ->result_array();
 
@@ -712,6 +728,41 @@ class Providers_model extends EA_Model
         }
 
         return $providers;
+    }
+
+    /**
+     * Get providers as options for dropdowns.
+     *
+     * @param array|string|null $where Where conditions.
+     *
+     * @return array Returns an array of options with 'value' and 'label' keys.
+     */
+    public function to_options(array|string|null $where = null): array
+    {
+        $role_id = $this->get_provider_role_id();
+
+        if ($where !== null) {
+            $this->db->where($where);
+        }
+
+        $providers = $this->db
+            ->select('id, first_name, last_name')
+            ->from('users')
+            ->where('id_roles', $role_id)
+            ->order_by('first_name, last_name')
+            ->get()
+            ->result_array();
+
+        $options = [];
+
+        foreach ($providers as $provider) {
+            $options[] = [
+                'value' => (int) $provider['id'],
+                'label' => trim($provider['first_name'] . ' ' . $provider['last_name']),
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -763,7 +814,7 @@ class Providers_model extends EA_Model
             'state' => $provider['state'],
             'zip' => $provider['zip_code'],
             'notes' => $provider['notes'],
-            'is_private' => $provider['is_private'],
+            'isPrivate' => $provider['is_private'],
             'ldapDn' => $provider['ldap_dn'],
             'timezone' => $provider['timezone'],
             'language' => $provider['language'],
@@ -823,7 +874,7 @@ class Providers_model extends EA_Model
      * @param array $provider API resource.
      * @param array|null $base Base provider data to be overwritten with the provided values (useful for updates).
      */
-    public function api_decode(array &$provider, array $base = null): void
+    public function api_decode(array &$provider, ?array $base = null): void
     {
         $decoded_resource = $base ?: [];
 

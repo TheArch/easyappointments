@@ -11,7 +11,10 @@
  * @since       v1.3.2
  * ---------------------------------------------------------------------------- */
 
+use Jsvrcek\ICS\Exception\CalendarEventException;
+
 require_once __DIR__ . '/Google.php';
+require_once __DIR__ . '/Caldav.php';
 
 /**
  * Console controller.
@@ -34,6 +37,7 @@ class Console extends EA_Controller
         $this->load->dbutil();
 
         $this->load->library('instance');
+        $this->load->library('cleanup');
 
         $this->load->model('admins_model');
         $this->load->model('customers_model');
@@ -132,6 +136,10 @@ class Console extends EA_Controller
      * Usage:
      *
      * php index.php console sync
+     *
+     * @throws CalendarEventException
+     * @throws Exception
+     * @throws Throwable
      */
     public function sync(): void
     {
@@ -146,6 +154,22 @@ class Console extends EA_Controller
                 Caldav::sync((string) $provider['id']);
             }
         }
+    }
+
+    /**
+     * Clean up old customer data based on data retention settings.
+     *
+     * Use this method in a cronjob to automatically delete customer data older than the configured retention period.
+     *
+     * Usage:
+     *
+     * php index.php console cleanup
+     *
+     * @throws Exception
+     */
+    public function cleanup(): void
+    {
+        $this->cleanup->run();
     }
 
     /**
@@ -177,6 +201,7 @@ class Console extends EA_Controller
             '⇾ php index.php console install',
             '⇾ php index.php console backup',
             '⇾ php index.php console sync',
+            '⇾ php index.php console cleanup    (cleans sessions, logs, cache, and customer data)',
             '',
             '',
         ];

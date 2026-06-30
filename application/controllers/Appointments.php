@@ -28,12 +28,18 @@ class Appointments extends EA_Controller
         'start_datetime',
         'end_datetime',
         'location',
+        'meeting_link',
         'notes',
         'color',
+        'status',
         'is_unavailability',
         'id_users_provider',
         'id_users_customer',
         'id_services',
+    ];
+
+    public array $optional_appointment_fields = [
+        //
     ];
 
     /**
@@ -58,8 +64,15 @@ class Appointments extends EA_Controller
      *
      * @deprecated Since 1.5
      */
-    public function index(string $appointment_hash = '')
+    public function index(string $appointment_hash = ''): void
     {
+        method('get');
+
+        // Validate appointment hash format to prevent injection
+        if (!empty($appointment_hash) && !preg_match('/^[a-fA-F0-9]{32}$/', $appointment_hash)) {
+            abort(400, 'Invalid appointment hash format.');
+        }
+
         redirect('booking/' . $appointment_hash);
     }
 
@@ -69,9 +82,16 @@ class Appointments extends EA_Controller
     public function search(): void
     {
         try {
+            method('post');
+
             if (cannot('view', PRIV_APPOINTMENTS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('keyword', 'string|null');
+            check('order_by', 'string|null');
+            check('limit', 'numeric|null');
+            check('offset', 'numeric|null');
 
             $keyword = request('keyword', '');
 
@@ -82,6 +102,33 @@ class Appointments extends EA_Controller
             $offset = (int) request('offset', '0');
 
             $appointments = $this->appointments_model->search($keyword, $limit, $offset, $order_by);
+
+            $user_id = session('user_id');
+            $role_slug = session('role_slug');
+
+            // If the current user is a provider he must only see his own appointments.
+            if ($role_slug === DB_SLUG_PROVIDER) {
+                foreach ($appointments as $index => $appointment) {
+                    if ((int) $appointment['id_users_provider'] !== (int) $user_id) {
+                        unset($appointments[$index]);
+                    }
+                }
+
+                $appointments = array_values($appointments);
+            }
+
+            // If the current user is a secretary he must only see the appointments of his providers.
+            if ($role_slug === DB_SLUG_SECRETARY) {
+                $provider_ids = $this->secretaries_model->find($user_id)['providers'];
+
+                foreach ($appointments as $index => $appointment) {
+                    if (!in_array((int) $appointment['id_users_provider'], $provider_ids)) {
+                        unset($appointments[$index]);
+                    }
+                }
+
+                $appointments = array_values($appointments);
+            }
 
             json_response($appointments);
         } catch (Throwable $e) {
@@ -95,17 +142,35 @@ class Appointments extends EA_Controller
     public function store(): void
     {
         try {
+            method('post');
+
             if (cannot('add', PRIV_APPOINTMENTS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('appointment', 'json');
+
             $appointment = json_decode(request('appointment'), true);
+
+            // Validate decoded appointment is an array
+            if (!is_array($appointment)) {
+                throw new InvalidArgumentException('Invalid appointment data provided.');
+            }
+
+            $user_id = (int) session('user_id');
+            $role_slug = session('role_slug');
+
+            if ($role_slug === DB_SLUG_PROVIDER) {
+                $appointment['id_users_provider'] = $user_id;
+            }
 
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
 
+            $this->appointments_model->optional($appointment, $this->optional_appointment_fields);
+
             $appointment_id = $this->appointments_model->save($appointment);
 
-            $appointment = $this->appointments_model->find($appointment);
+            $appointment = $this->appointments_model->find($appointment_id);
 
             $this->webhooks_client->trigger(WEBHOOK_APPOINTMENT_SAVE, $appointment);
 
@@ -124,11 +189,22 @@ class Appointments extends EA_Controller
     public function find(): void
     {
         try {
+            method('get');
+
             if (cannot('view', PRIV_APPOINTMENTS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('appointment_id', 'numeric');
+
             $appointment_id = request('appointment_id');
+
+            // Validate appointment_id is a positive integer
+            if (empty($appointment_id) || !filter_var($appointment_id, FILTER_VALIDATE_INT) || $appointment_id <= 0) {
+                throw new InvalidArgumentException('Invalid appointment ID provided.');
+            }
+
+            $this->check_appointment_access((int) $appointment_id);
 
             $appointment = $this->appointments_model->find($appointment_id);
 
@@ -144,13 +220,35 @@ class Appointments extends EA_Controller
     public function update(): void
     {
         try {
+            method('post');
+
             if (cannot('edit', PRIV_APPOINTMENTS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('appointment', 'json');
+
             $appointment = json_decode(request('appointment'), true);
 
+            // Validate decoded appointment is an array
+            if (!is_array($appointment)) {
+                throw new InvalidArgumentException('Invalid appointment data provided.');
+            }
+
+            $user_id = (int) session('user_id');
+            $role_slug = session('role_slug');
+
+            if (!empty($appointment['id'])) {
+                $this->check_appointment_access((int) $appointment['id']);
+            }
+
+            if ($role_slug === DB_SLUG_PROVIDER) {
+                $appointment['id_users_provider'] = $user_id;
+            }
+
             $this->appointments_model->only($appointment, $this->allowed_appointment_fields);
+
+            $this->appointments_model->optional($appointment, $this->optional_appointment_fields);
 
             $appointment_id = $this->appointments_model->save($appointment);
 
@@ -169,11 +267,22 @@ class Appointments extends EA_Controller
     public function destroy(): void
     {
         try {
+            method('post');
+
             if (cannot('delete', PRIV_APPOINTMENTS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('appointment_id', 'numeric');
+
             $appointment_id = request('appointment_id');
+
+            // Validate appointment_id is a positive integer
+            if (empty($appointment_id) || !filter_var($appointment_id, FILTER_VALIDATE_INT) || $appointment_id <= 0) {
+                throw new InvalidArgumentException('Invalid appointment ID provided.');
+            }
+
+            $this->check_appointment_access((int) $appointment_id);
 
             $appointment = $this->appointments_model->find($appointment_id);
 
@@ -186,6 +295,28 @@ class Appointments extends EA_Controller
             ]);
         } catch (Throwable $e) {
             json_exception($e);
+        }
+    }
+
+    /**
+     * Check whether the current user has access to the appointment's provider.
+     */
+    private function check_appointment_access(int $appointment_id): void
+    {
+        $user_id = (int) session('user_id');
+        $role_slug = session('role_slug');
+        $appointment = $this->appointments_model->find($appointment_id);
+        $provider_id = (int) $appointment['id_users_provider'];
+
+        if (
+            $role_slug === DB_SLUG_SECRETARY &&
+            !$this->secretaries_model->is_provider_supported($user_id, $provider_id)
+        ) {
+            abort(403, 'Forbidden');
+        }
+
+        if ($role_slug === DB_SLUG_PROVIDER && $user_id !== $provider_id) {
+            abort(403, 'Forbidden');
         }
     }
 }

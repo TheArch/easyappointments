@@ -39,7 +39,6 @@ class Customers_model extends EA_Model
         'phone' => 'phone_number',
         'address' => 'address',
         'city' => 'city',
-        'state' => 'state',
         'zip' => 'zip_code',
         'timezone' => 'timezone',
         'language' => 'language',
@@ -97,8 +96,8 @@ class Customers_model extends EA_Model
         }
 
         // Make sure all required fields are provided.
-        $require_first_name = filter_var(setting('require_phone_number'), FILTER_VALIDATE_BOOLEAN);
-        $require_last_name = filter_var(setting('require_last'), FILTER_VALIDATE_BOOLEAN);
+        $require_first_name = filter_var(setting('require_first_name'), FILTER_VALIDATE_BOOLEAN);
+        $require_last_name = filter_var(setting('require_last_name'), FILTER_VALIDATE_BOOLEAN);
         $require_email = filter_var(setting('require_email'), FILTER_VALIDATE_BOOLEAN);
         $require_phone_number = filter_var(setting('require_phone_number'), FILTER_VALIDATE_BOOLEAN);
         $require_address = filter_var(setting('require_address'), FILTER_VALIDATE_BOOLEAN);
@@ -155,10 +154,10 @@ class Customers_model extends EA_Model
      * @return array Returns an array of customers.
      */
     public function get(
-        array|string $where = null,
-        int $limit = null,
-        int $offset = null,
-        string $order_by = null,
+        array|string|null $where = null,
+        ?int $limit = null,
+        ?int $offset = null,
+        ?string $order_by = null,
     ): array {
         $role_id = $this->get_customer_role_id();
 
@@ -167,7 +166,7 @@ class Customers_model extends EA_Model
         }
 
         if ($order_by !== null) {
-            $this->db->order_by($order_by);
+            $this->db->order_by($this->quote_order_by($order_by));
         }
 
         $customers = $this->db->get_where('users', ['id_roles' => $role_id], $limit, $offset)->result_array();
@@ -304,6 +303,28 @@ class Customers_model extends EA_Model
      */
     public function delete(int $customer_id): void
     {
+        // Anonymize consent records before deleting customer (GDPR compliance)
+        $this->db->where('id_users', $customer_id);
+        $this->db->update('consents', [
+            'id_users' => null,
+            'first_name' => '[DELETED]',
+            'last_name' => '[DELETED]',
+            'email' => '[DELETED]',
+        ]);
+
+        // Also anonymize any consents that match the customer's email
+        $customer = $this->db->get_where('users', ['id' => $customer_id])->row_array();
+
+        if (!empty($customer['email'])) {
+            $this->db->where('email', $customer['email']);
+            $this->db->where('id_users IS NULL', null, false);
+            $this->db->update('consents', [
+                'first_name' => '[DELETED]',
+                'last_name' => '[DELETED]',
+                'email' => '[DELETED]',
+            ]);
+        }
+
         $this->db->delete('users', ['id' => $customer_id]);
     }
 
@@ -392,7 +413,7 @@ class Customers_model extends EA_Model
      *
      * @return array Returns an array of customers.
      */
-    public function search(string $keyword, int $limit = null, int $offset = null, string $order_by = null): array
+    public function search(string $keyword, ?int $limit = null, ?int $offset = null, ?string $order_by = null): array
     {
         $role_id = $this->get_customer_role_id();
 
@@ -415,7 +436,7 @@ class Customers_model extends EA_Model
             ->group_end()
             ->limit($limit)
             ->offset($offset)
-            ->order_by($order_by)
+            ->order_by($this->quote_order_by($order_by))
             ->get()
             ->result_array();
 
@@ -424,6 +445,41 @@ class Customers_model extends EA_Model
         }
 
         return $customers;
+    }
+
+    /**
+     * Get customers as options for dropdowns.
+     *
+     * @param array|string|null $where Where conditions.
+     *
+     * @return array Returns an array of options with 'value' and 'label' keys.
+     */
+    public function to_options(array|string|null $where = null): array
+    {
+        $role_id = $this->get_customer_role_id();
+
+        if ($where !== null) {
+            $this->db->where($where);
+        }
+
+        $customers = $this->db
+            ->select('id, first_name, last_name')
+            ->from('users')
+            ->where('id_roles', $role_id)
+            ->order_by('first_name, last_name')
+            ->get()
+            ->result_array();
+
+        $options = [];
+
+        foreach ($customers as $customer) {
+            $options[] = [
+                'value' => (int) $customer['id'],
+                'label' => trim($customer['first_name'] . ' ' . $customer['last_name']),
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -475,7 +531,7 @@ class Customers_model extends EA_Model
      * @param array $customer API resource.
      * @param array|null $base Base customer data to be overwritten with the provided values (useful for updates).
      */
-    public function api_decode(array &$customer, array $base = null): void
+    public function api_decode(array &$customer, ?array $base = null): void
     {
         $decoded_resource = $base ?: [];
 

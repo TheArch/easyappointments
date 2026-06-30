@@ -38,8 +38,12 @@ App.Pages.Booking = (function () {
     const $customField3 = $('#custom-field-3');
     const $customField4 = $('#custom-field-4');
     const $customField5 = $('#custom-field-5');
+    const $displayBookingSelection = $('.display-booking-selection');
+    const $rememberMe = $('#remember-me');
     const tippy = window.tippy;
     const moment = window.moment;
+
+    const STORAGE_KEY = 'EasyAppointments.CustomerInfo';
 
     /**
      * Determines the functionality of the page.
@@ -146,7 +150,7 @@ App.Pages.Booking = (function () {
                     const displayedMonthMoment = moment(
                         instance.currentYearElement.value +
                             '-' +
-                            (Number(instance.monthsDropdownContainer.value) + 1) +
+                            String(Number(instance.monthsDropdownContainer.value) + 1).padStart(2, '0') +
                             '-01',
                     );
 
@@ -172,6 +176,14 @@ App.Pages.Booking = (function () {
         addEventListeners();
 
         optimizeContactInfoDisplay();
+
+        const serviceOptionCount = $selectService.find('option').length;
+
+        if (serviceOptionCount === 2) {
+            $selectService.find('option[value=""]').remove();
+            const firstServiceId = $selectService.find('option:first').attr('value');
+            $selectService.val(firstServiceId).trigger('change');
+        }
 
         // If the manage mode is true, the appointment data should be loaded by default.
         if (manageMode) {
@@ -201,7 +213,7 @@ App.Pages.Booking = (function () {
                 for (const index in vars('available_providers')) {
                     const provider = vars('available_providers')[index];
 
-                    if (provider.id === selectedProviderId && provider.services.length > 0) {
+                    if (Number(provider.id) === Number(selectedProviderId) && provider.services.length > 0) {
                         $selectService.val(provider.services[0]).trigger('change');
                     }
                 }
@@ -230,17 +242,15 @@ App.Pages.Booking = (function () {
 
                 $selectService.closest('.wizard-frame').find('.button-next').trigger('click');
 
-                $(document).find('.book-step:first').hide();
+                $('#step-1').hide().removeClass('d-inline-block');
 
                 $(document).find('.button-back:first').css('visibility', 'hidden');
 
-                $(document)
-                    .find('.book-step:not(:first)')
-                    .each((index, bookStepEl) =>
-                        $(bookStepEl)
-                            .find('strong')
-                            .text(index + 1),
-                    );
+                $('#steps .book-step:visible').each((index, bookStepEl) =>
+                    $(bookStepEl)
+                        .find('strong')
+                        .text(index + 1),
+                );
             } else {
                 $('#wizard-frame-1')
                     .css({
@@ -257,6 +267,9 @@ App.Pages.Booking = (function () {
             prefillFromQueryParam('#address', 'address');
             prefillFromQueryParam('#city', 'city');
             prefillFromQueryParam('#zip-code', 'zip');
+
+            // Initialize remember me after prefilling from query params
+            initializeRememberMe();
         }
     }
 
@@ -330,19 +343,7 @@ App.Pages.Booking = (function () {
          *
          * Whenever the provider changes the available appointment date - time periods must be updated.
          */
-        $selectProvider.on('change', (event) => {
-            const $target = $(event.target);
-
-            const todayDateTimeObject = new Date();
-            const todayDateTimeMoment = moment(todayDateTimeObject);
-
-            App.Utils.UI.setDateTimePickerValue($selectDate, todayDateTimeObject);
-
-            App.Http.Booking.getUnavailableDates(
-                $target.val(),
-                $selectService.val(),
-                todayDateTimeMoment.format('YYYY-MM-DD'),
-            );
+        $selectProvider.on('change', () => {
             App.Pages.Booking.updateConfirmFrame();
         });
 
@@ -355,10 +356,15 @@ App.Pages.Booking = (function () {
         $selectService.on('change', (event) => {
             const $target = $(event.target);
             const serviceId = $selectService.val();
+            const previousProviderId = $selectProvider.val();
+
+            $selectProvider.parent().prop('hidden', !Boolean(serviceId));
 
             $selectProvider.empty();
 
             $selectProvider.append(new Option(lang('please_select'), ''));
+
+            let previousProviderCanServe = false;
 
             vars('available_providers').forEach((provider) => {
                 // If the current provider is able to provide the selected service, add him to the list box.
@@ -368,19 +374,33 @@ App.Pages.Booking = (function () {
 
                 if (canServeService) {
                     $selectProvider.append(new Option(provider.first_name + ' ' + provider.last_name, provider.id));
+
+                    if (String(provider.id) === String(previousProviderId)) {
+                        previousProviderCanServe = true;
+                    }
                 }
             });
 
-            // Add the "Any Provider" entry.
-            if ($selectProvider.find('option').length > 1 && vars('display_any_provider') === '1') {
+            const providerOptionCount = $selectProvider.find('option').length;
+
+            // Remove the "Please Select" option, if there is only one provider available
+
+            if (providerOptionCount === 2) {
+                $selectProvider.find('option[value=""]').remove();
+            }
+
+            // Add the "Any Provider" entry
+
+            if (providerOptionCount > 2 && Boolean(Number(vars('display_any_provider')))) {
                 $(new Option(lang('any_provider'), 'any-provider')).insertAfter($selectProvider.find('option:first'));
             }
 
-            App.Http.Booking.getUnavailableDates(
-                $selectProvider.val(),
-                $target.val(),
-                moment(App.Utils.UI.getDateTimePickerValue($selectDate)).format('YYYY-MM-DD'),
-            );
+            // Restore previous provider selection if they can serve the new service
+            if (previousProviderId && previousProviderCanServe) {
+                $selectProvider.val(previousProviderId);
+            } else if (previousProviderId === 'any-provider' && providerOptionCount > 2 && Boolean(Number(vars('display_any_provider')))) {
+                $selectProvider.val('any-provider');
+            }
 
             App.Pages.Booking.updateConfirmFrame();
 
@@ -399,6 +419,19 @@ App.Pages.Booking = (function () {
             // If we are on the first step and there is no provider selected do not continue with the next step.
             if ($target.attr('data-step_index') === '1' && !$selectProvider.val()) {
                 return;
+            }
+
+            // If we are on the first step, fetch unavailable dates and available hours for step 2.
+            if ($target.attr('data-step_index') === '1') {
+                const todayMoment = moment();
+
+                App.Utils.UI.setDateTimePickerValue($selectDate, todayMoment.toDate());
+
+                App.Http.Booking.getUnavailableDates(
+                    $selectProvider.val(),
+                    $selectService.val(),
+                    todayMoment.format('YYYY-MM-DD'),
+                );
             }
 
             // If we are on the 2nd tab then the user should have an appointment hour selected.
@@ -422,18 +455,25 @@ App.Pages.Booking = (function () {
                     return; // Validation failed, do not continue.
                 } else {
                     App.Pages.Booking.updateConfirmFrame();
+                    
+                    // Initialize ALTCHA widget if present
+                    if ($('#altcha-widget').length && App.Utils.Altcha) {
+                        App.Utils.Altcha.initialize('altcha-widget');
+                    }
                 }
             }
 
             // Display the next step tab (uses jquery animation effect).
             const nextTabIndex = parseInt($target.attr('data-step_index')) + 1;
 
+            // Update step indicator immediately
+            $('.active-step').removeClass('active-step');
+            $('#step-' + nextTabIndex).addClass('active-step');
+
             $target
                 .parents()
                 .eq(1)
                 .fadeOut(() => {
-                    $('.active-step').removeClass('active-step');
-                    $('#step-' + nextTabIndex).addClass('active-step');
                     $('#wizard-frame-' + nextTabIndex).fadeIn();
                 });
 
@@ -453,12 +493,14 @@ App.Pages.Booking = (function () {
         $('.button-back').on('click', (event) => {
             const prevTabIndex = parseInt($(event.currentTarget).attr('data-step_index')) - 1;
 
+            // Update step indicator immediately
+            $('.active-step').removeClass('active-step');
+            $('#step-' + prevTabIndex).addClass('active-step');
+
             $(event.currentTarget)
                 .parents()
                 .eq(1)
                 .fadeOut(() => {
-                    $('.active-step').removeClass('active-step');
-                    $('#step-' + prevTabIndex).addClass('active-step');
                     $('#wizard-frame-' + prevTabIndex).fadeIn();
                 });
         });
@@ -516,7 +558,7 @@ App.Pages.Booking = (function () {
                 );
 
                 $cancellationReason = $('<textarea/>', {
-                    'class': 'form-control',
+                    'class': 'form-control mt-2',
                     'id': 'cancellation-reason',
                     'rows': '3',
                     'css': {
@@ -644,19 +686,23 @@ App.Pages.Booking = (function () {
      * customer settings and input for the appointment booking.
      */
     function updateConfirmFrame() {
-        const serviceOptionText = $selectService.find('option:selected').text();
-        $('.display-selected-service').text(serviceOptionText).removeClass('invisible');
+        const serviceId = $selectService.val();
+        const providerId = $selectProvider.val();
 
-        const providerOptionText = $selectProvider.find('option:selected').text();
-        $('.display-selected-provider').text(providerOptionText).removeClass('invisible');
+        $displayBookingSelection.text(`${lang('service')} │ ${lang('provider')}`); // Notice: "│" is a custom ASCII char
+
+        const serviceOptionText = serviceId ? $selectService.find('option:selected').text() : lang('service');
+        const providerOptionText = providerId ? $selectProvider.find('option:selected').text() : lang('provider');
+
+        if (serviceId || providerId) {
+            $displayBookingSelection.text(`${serviceOptionText} │ ${providerOptionText}`);
+        }
 
         if (!$availableHours.find('.selected-hour').text()) {
             return; // No time is selected, skip the rest of this function...
         }
 
         // Render the appointment details
-
-        const serviceId = $selectService.val();
 
         const service = vars('available_services').find(
             (availableService) => Number(availableService.id) === Number(serviceId),
@@ -670,17 +716,14 @@ App.Pages.Booking = (function () {
         const selectedDateMoment = moment(selectedDateObject);
         const selectedDate = selectedDateMoment.format('YYYY-MM-DD');
         const selectedTime = $availableHours.find('.selected-hour').text();
-        const selectedDateTime = `${selectedDate} ${selectedTime}`;
 
-        let formattedSelectedDate;
+        let formattedSelectedDate = '';
 
         if (selectedDateObject) {
-            formattedSelectedDate = App.Utils.Date.format(
-                selectedDateTime,
-                vars('date_format'),
-                vars('time_format'),
-                true,
-            );
+            formattedSelectedDate =
+                App.Utils.Date.format(selectedDate, vars('date_format'), vars('time_format'), false) +
+                ' ' +
+                selectedTime;
         }
 
         const timezoneOptionText = $selectTimezone.find('option:selected').text();
@@ -744,7 +787,7 @@ App.Pages.Booking = (function () {
                 <div class="mb-2" ${!email ? 'hidden' : ''}>
                     ${email}
                 </div>
-                <div class="mb-2" ${!email ? 'hidden' : ''}>
+                <div class="mb-2" ${!phoneNumber ? 'hidden' : ''}>
                     ${phoneNumber}
                 </div>
                 <div class="mb-2" ${!address ? 'hidden' : ''}>
@@ -755,6 +798,13 @@ App.Pages.Booking = (function () {
                 </div>
             </div>
         `);
+
+        // KUM: show the Helios login-confirmation fields only for external (non @med.uni-muenchen.de) emails.
+        if ($email.val().toLowerCase().endsWith('@med.uni-muenchen.de')) {
+            $('#isHelios').hide();
+        } else {
+            $('#isHelios').show();
+        }
 
         // Update appointment form data for submission to server when the user confirms the appointment.
 
@@ -774,6 +824,7 @@ App.Pages.Booking = (function () {
             custom_field_3: $customField3.val(),
             custom_field_4: $customField4.val(),
             custom_field_5: $customField5.val(),
+            ldap_logintoconfirm: $email.val().toLowerCase().endsWith('@med.uni-muenchen.de'),
         };
 
         data.appointment = {
@@ -852,6 +903,14 @@ App.Pages.Booking = (function () {
             const startMoment = moment(appointment.start_datetime);
             App.Utils.UI.setDateTimePickerValue($selectDate, startMoment.toDate());
             App.Http.Booking.getAvailableHours(startMoment.format('YYYY-MM-DD'));
+
+            // Update unavailable dates while in manage mode
+
+            App.Http.Booking.getUnavailableDates(
+                appointment.id_users_provider,
+                appointment.id_services,
+                startMoment.format('YYYY-MM-DD'),
+            );
 
             // Apply Customer's Data
             $lastName.val(customer.last_name);
@@ -940,6 +999,137 @@ App.Pages.Booking = (function () {
                 </div>
             `).appendTo($serviceDescription);
         }
+    }
+
+    /**
+     * Save customer information to localStorage.
+     */
+    function saveCustomerInfo() {
+        const customerInfo = {
+            firstName: $firstName.val(),
+            lastName: $lastName.val(),
+            email: $email.val(),
+            phoneNumber: $phoneNumber.val(),
+            address: $address.val(),
+            city: $city.val(),
+            zipCode: $zipCode.val(),
+            customField1: $customField1.val(),
+            customField2: $customField2.val(),
+            customField3: $customField3.val(),
+            customField4: $customField4.val(),
+            customField5: $customField5.val(),
+            rememberMe: true,
+        };
+
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(customerInfo));
+        } catch (e) {
+            console.warn('Could not save customer info to localStorage:', e);
+        }
+    }
+
+    /**
+     * Load customer information from localStorage.
+     * GET parameters have priority over stored values.
+     */
+    function loadCustomerInfo() {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+
+            if (!stored) {
+                return;
+            }
+
+            const customerInfo = JSON.parse(stored);
+
+            // Restore remember me checkbox state
+            if (customerInfo.rememberMe) {
+                $rememberMe.prop('checked', true);
+            }
+
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+
+            // Only populate fields that don't have GET params and are empty
+            if (!urlParams.has('first_name') && !$firstName.val()) {
+                $firstName.val(customerInfo.firstName || '');
+            }
+            if (!urlParams.has('last_name') && !$lastName.val()) {
+                $lastName.val(customerInfo.lastName || '');
+            }
+            if (!urlParams.has('email') && !$email.val()) {
+                $email.val(customerInfo.email || '');
+            }
+            if (!urlParams.has('phone_number') && !$phoneNumber.val()) {
+                $phoneNumber.val(customerInfo.phoneNumber || '');
+            }
+            if (!urlParams.has('address') && !$address.val()) {
+                $address.val(customerInfo.address || '');
+            }
+            if (!urlParams.has('city') && !$city.val()) {
+                $city.val(customerInfo.city || '');
+            }
+            if (!urlParams.has('zip_code') && !$zipCode.val()) {
+                $zipCode.val(customerInfo.zipCode || '');
+            }
+            if (!urlParams.has('custom_field_1') && !$customField1.val()) {
+                $customField1.val(customerInfo.customField1 || '');
+            }
+            if (!urlParams.has('custom_field_2') && !$customField2.val()) {
+                $customField2.val(customerInfo.customField2 || '');
+            }
+            if (!urlParams.has('custom_field_3') && !$customField3.val()) {
+                $customField3.val(customerInfo.customField3 || '');
+            }
+            if (!urlParams.has('custom_field_4') && !$customField4.val()) {
+                $customField4.val(customerInfo.customField4 || '');
+            }
+            if (!urlParams.has('custom_field_5') && !$customField5.val()) {
+                $customField5.val(customerInfo.customField5 || '');
+            }
+        } catch (e) {
+            console.warn('Could not load customer info from localStorage:', e);
+        }
+    }
+
+    /**
+     * Clear customer information from localStorage.
+     */
+    function clearCustomerInfo() {
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+            console.warn('Could not clear customer info from localStorage:', e);
+        }
+    }
+
+    /**
+     * Initialize the remember me functionality.
+     */
+    function initializeRememberMe() {
+        // Skip if in manage mode (checkbox not present, use appointment data)
+        if (manageMode || !$rememberMe.length) {
+            return;
+        }
+
+        // Load stored customer info on page load
+        loadCustomerInfo();
+
+        // Handle remember me checkbox change
+        $rememberMe.on('change', function () {
+            if ($(this).prop('checked')) {
+                saveCustomerInfo();
+            } else {
+                clearCustomerInfo();
+            }
+        });
+
+        // Save customer info before form submission if remember me is checked
+        $bookAppointmentSubmit.on('click', function () {
+            if ($rememberMe.prop('checked')) {
+                saveCustomerInfo();
+            }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', initialize);

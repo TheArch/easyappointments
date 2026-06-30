@@ -56,7 +56,9 @@ class Webhooks_client
         $webhooks = $this->CI->webhooks_model->get();
 
         foreach ($webhooks as $webhook) {
-            if (str_contains($webhook['actions'], $action)) {
+            $actions = array_filter(array_map('trim', explode(',', (string) $webhook['actions'])));
+
+            if (in_array($action, $actions, true)) {
                 $this->call($webhook, $action, $payload);
             }
         }
@@ -74,13 +76,22 @@ class Webhooks_client
         try {
             $client = new Client();
 
-            $client->post($webhook['url'], [
+            $headers = [];
+
+            if (!empty($webhook['secret_header']) && !empty($webhook['secret_token'])) {
+                $headers[$webhook['secret_header']] = $webhook['secret_token'];
+            }
+
+            $response = $client->post($webhook['url'], [
                 'verify' => $webhook['is_ssl_verified'],
+                'headers' => $headers,
                 'json' => [
                     'action' => $action,
                     'payload' => $payload,
                 ],
             ]);
+
+            // echo $response->getBody()->getContents(); // Use this for quick debugging
         } catch (Throwable $e) {
             log_message(
                 'error',

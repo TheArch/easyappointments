@@ -38,7 +38,15 @@ class Admins extends EA_Controller
         'settings',
     ];
 
+    public array $optional_admin_fields = [
+        //
+    ];
+
     public array $allowed_admin_setting_fields = ['username', 'password', 'notifications', 'calendar_view'];
+
+    public array $optional_admin_setting_fields = [
+        //
+    ];
 
     /**
      * Admins constructor.
@@ -63,6 +71,8 @@ class Admins extends EA_Controller
      */
     public function index(): void
     {
+        method('get');
+
         session(['dest_url' => site_url('admins')]);
 
         $user_id = session('user_id');
@@ -105,9 +115,16 @@ class Admins extends EA_Controller
     public function search(): void
     {
         try {
+            method('post');
+
             if (cannot('view', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('keyword', 'string|null');
+            check('order_by', 'string|null');
+            check('limit', 'numeric|null');
+            check('offset', 'numeric|null');
 
             $keyword = request('keyword', '');
 
@@ -131,15 +148,23 @@ class Admins extends EA_Controller
     public function store(): void
     {
         try {
+            method('post');
+
             if (cannot('add', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('admin', 'array');
 
             $admin = request('admin');
 
             $this->admins_model->only($admin, $this->allowed_admin_fields);
 
+            $this->admins_model->optional($admin, $this->optional_admin_fields);
+
             $this->admins_model->only($admin['settings'], $this->allowed_admin_setting_fields);
+
+            $this->admins_model->optional($admin['settings'], $this->optional_admin_setting_fields);
 
             $admin_id = $this->admins_model->save($admin);
 
@@ -162,11 +187,20 @@ class Admins extends EA_Controller
     public function find(): void
     {
         try {
+            method('get');
+
             if (cannot('view', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('admin_id', 'numeric');
+
             $admin_id = request('admin_id');
+
+            // Validate admin_id is a positive integer
+            if (empty($admin_id) || !filter_var($admin_id, FILTER_VALIDATE_INT) || $admin_id <= 0) {
+                throw new InvalidArgumentException('Invalid admin ID provided.');
+            }
 
             $admin = $this->admins_model->find($admin_id);
 
@@ -182,15 +216,23 @@ class Admins extends EA_Controller
     public function update(): void
     {
         try {
+            method('post');
+
             if (cannot('edit', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('admin', 'array');
 
             $admin = request('admin');
 
             $this->admins_model->only($admin, $this->allowed_admin_fields);
 
+            $this->admins_model->optional($admin, $this->optional_admin_fields);
+
             $this->admins_model->only($admin['settings'], $this->allowed_admin_setting_fields);
+
+            $this->admins_model->optional($admin['settings'], $this->optional_admin_setting_fields);
 
             $admin_id = $this->admins_model->save($admin);
 
@@ -213,11 +255,25 @@ class Admins extends EA_Controller
     public function destroy(): void
     {
         try {
+            method('post');
+
             if (cannot('delete', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('admin_id', 'numeric');
+
             $admin_id = request('admin_id');
+
+            // Validate admin_id is a positive integer
+            if (empty($admin_id) || !filter_var($admin_id, FILTER_VALIDATE_INT) || $admin_id <= 0) {
+                throw new InvalidArgumentException('Invalid admin ID provided.');
+            }
+
+            // Prevent self-deletion
+            if ((int) $admin_id === (int) session('user_id')) {
+                throw new RuntimeException('You cannot delete your own account.');
+            }
 
             $admin = $this->admins_model->find($admin_id);
 

@@ -41,9 +41,15 @@ class Secretaries extends EA_Controller
         'settings',
         'providers',
     ];
-    public array $allowed_secretary_setting_fields = ['username', 'password', 'notifications', 'calendar_view'];
+
     public array $optional_secretary_fields = [
         'providers' => [],
+    ];
+
+    public array $allowed_secretary_setting_fields = ['username', 'password', 'notifications', 'calendar_view'];
+
+    public array $optional_secretary_setting_fields = [
+        //
     ];
 
     /**
@@ -65,11 +71,13 @@ class Secretaries extends EA_Controller
     /**
      * Render the backend secretaries page.
      *
-     * On this page secretary users will be able to manage secretaries, which are eventually selected by customers during the
+     * On this page admin users will be able to manage secretaries, which are eventually selected by customers during the
      * booking process.
      */
     public function index(): void
     {
+        method('get');
+
         session(['dest_url' => site_url('secretaries')]);
 
         $user_id = session('user_id');
@@ -97,7 +105,7 @@ class Secretaries extends EA_Controller
             'role_slug' => $role_slug,
             'timezones' => $this->timezones->to_array(),
             'min_password_length' => MIN_PASSWORD_LENGTH,
-            'providers' => $providers,
+            'providers' => filter_sensitive_users_data($providers),
             'default_language' => setting('default_language'),
             'default_timezone' => setting('default_timezone'),
         ]);
@@ -120,9 +128,16 @@ class Secretaries extends EA_Controller
     public function search(): void
     {
         try {
+            method('post');
+
             if (cannot('view', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('keyword', 'string|null');
+            check('order_by', 'string|null');
+            check('limit', 'numeric|null');
+            check('offset', 'numeric|null');
 
             $keyword = request('keyword', '');
 
@@ -146,17 +161,23 @@ class Secretaries extends EA_Controller
     public function store(): void
     {
         try {
+            method('post');
+
             if (cannot('add', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('secretary', 'array');
 
             $secretary = request('secretary');
 
             $this->secretaries_model->only($secretary, $this->allowed_secretary_fields);
 
+            $this->secretaries_model->optional($secretary, $this->optional_secretary_fields);
+
             $this->secretaries_model->only($secretary['settings'], $this->allowed_secretary_setting_fields);
 
-            $this->secretaries_model->optional($secretary, $this->optional_secretary_fields);
+            $this->secretaries_model->optional($secretary['settings'], $this->optional_secretary_setting_fields);
 
             $secretary_id = $this->secretaries_model->save($secretary);
 
@@ -179,11 +200,20 @@ class Secretaries extends EA_Controller
     public function find(): void
     {
         try {
+            method('get');
+
             if (cannot('view', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('secretary_id', 'numeric');
+
             $secretary_id = request('secretary_id');
+
+            // Validate secretary_id is a positive integer
+            if (empty($secretary_id) || !filter_var($secretary_id, FILTER_VALIDATE_INT) || $secretary_id <= 0) {
+                throw new InvalidArgumentException('Invalid secretary ID provided.');
+            }
 
             $secretary = $this->secretaries_model->find($secretary_id);
 
@@ -199,9 +229,13 @@ class Secretaries extends EA_Controller
     public function update(): void
     {
         try {
+            method('post');
+
             if (cannot('edit', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
+
+            check('secretary', 'array');
 
             $secretary = request('secretary');
 
@@ -232,11 +266,20 @@ class Secretaries extends EA_Controller
     public function destroy(): void
     {
         try {
+            method('post');
+
             if (cannot('delete', PRIV_USERS)) {
                 abort(403, 'Forbidden');
             }
 
+            check('secretary_id', 'numeric');
+
             $secretary_id = request('secretary_id');
+
+            // Validate secretary_id is a positive integer
+            if (empty($secretary_id) || !filter_var($secretary_id, FILTER_VALIDATE_INT) || $secretary_id <= 0) {
+                throw new InvalidArgumentException('Invalid secretary ID provided.');
+            }
 
             $secretary = $this->secretaries_model->find($secretary_id);
 

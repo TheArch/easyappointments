@@ -56,9 +56,9 @@
  *
  * @property Accounts $accounts
  * @property Api $api
+ * @property Cleanup $cleanup
  * @property Availability $availability
  * @property Email_messages $email_messages
- * @property Captcha_builder $captcha_builder
  * @property Google_Sync $google_sync
  * @property Caldav_Sync $caldav_sync
  * @property Ics_file $ics_file
@@ -81,12 +81,11 @@ class EA_Controller extends CI_Controller
 
         $this->load->library('accounts');
 
+        $this->check_storage_writable();
         $this->ensure_user_exists();
-
+        $this->configure_timezone();
         $this->configure_language();
-
         $this->load_common_html_vars();
-
         $this->load_common_script_vars();
 
         rate_limit($this->input->ip_address());
@@ -96,7 +95,7 @@ class EA_Controller extends CI_Controller
     {
         $user_id = session('user_id');
 
-        if (!$user_id) {
+        if (!$user_id || !$this->db->table_exists('users')) {
             return;
         }
 
@@ -113,13 +112,24 @@ class EA_Controller extends CI_Controller
     private function configure_language()
     {
         $session_language = session('language');
+        $query_language = request('language');
+        $available_languages = config('available_languages');
 
-        if ($session_language) {
+        // Priority: session > query param > default (english)
+        $language = null;
+
+        if ($session_language && in_array($session_language, $available_languages)) {
+            $language = $session_language;
+        } elseif ($query_language && in_array($query_language, $available_languages)) {
+            $language = $query_language;
+        }
+
+        if ($language) {
             $language_codes = config('language_codes');
 
             config([
-                'language' => $session_language,
-                'language_code' => array_search($session_language, $language_codes) ?: 'en',
+                'language' => $language,
+                'language_code' => array_search($language, $language_codes) ?: 'en',
             ]);
         }
 
@@ -153,5 +163,49 @@ class EA_Controller extends CI_Controller
             'language' => config('language'),
             'language_code' => config('language_code'),
         ]);
+    }
+
+    /**
+     * Set the default timezone of the app, based on the selected setting.
+     */
+    private function configure_timezone(): void
+    {
+        if (!$this->db->table_exists('settings')) {
+            return;
+        }
+
+        $default_timezone = setting('default_timezone');
+
+        date_default_timezone_set($default_timezone);
+    }
+
+    /**
+     * Check if the storage folder is writable.
+     */
+    private function check_storage_writable(): void
+    {
+        $storage_path = APPPATH . '../storage';
+
+        if (!is_dir($storage_path)) {
+            show_error(
+                'The storage folder does not exist: ' .
+                    $storage_path .
+                    '. ' .
+                    'Please create this directory and ensure it is writable by the web server.',
+                500,
+                'Storage Configuration Error',
+            );
+        }
+
+        if (!is_writable($storage_path)) {
+            show_error(
+                'The storage folder is not writable: ' .
+                    $storage_path .
+                    '. ' .
+                    'Please ensure the web server has write permissions to this directory and its subdirectories (cache, logs, sessions, uploads).',
+                500,
+                'Storage Configuration Error',
+            );
+        }
     }
 }

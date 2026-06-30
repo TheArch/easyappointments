@@ -36,7 +36,16 @@ class Account extends EA_Controller
         'language',
         'settings',
     ];
+
+    public array $optional_user_fields = [
+        //
+    ];
+
     public array $allowed_user_setting_fields = ['username', 'password', 'notifications', 'calendar_view'];
+
+    public array $optional_user_setting_fields = [
+        //
+    ];
 
     /**
      * Account constructor.
@@ -64,6 +73,8 @@ class Account extends EA_Controller
      */
     public function index(): void
     {
+        method('get');
+
         session(['dest_url' => site_url('account')]);
 
         $user_id = session('user_id');
@@ -81,7 +92,7 @@ class Account extends EA_Controller
         $account = $this->users_model->find($user_id);
 
         script_vars([
-            'account' => $account,
+            'account' => filter_sensitive_user_data($account),
         ]);
 
         html_vars([
@@ -100,9 +111,13 @@ class Account extends EA_Controller
     public function save(): void
     {
         try {
+            method('post');
+
             if (cannot('edit', PRIV_USER_SETTINGS)) {
                 throw new RuntimeException('You do not have the required permissions for this task.');
             }
+
+            check('account', 'array');
 
             $account = request('account');
 
@@ -110,7 +125,11 @@ class Account extends EA_Controller
 
             $this->users_model->only($account, $this->allowed_user_fields);
 
+            $this->users_model->optional($account, $this->optional_user_fields);
+
             $this->users_model->only($account['settings'], $this->allowed_user_setting_fields);
+
+            $this->users_model->optional($account['settings'], $this->optional_user_setting_fields);
 
             if (empty($account['password'])) {
                 unset($account['password']);
@@ -137,6 +156,11 @@ class Account extends EA_Controller
     public function validate_username(): void
     {
         try {
+            method('post');
+
+            check('username', 'string');
+            check('user_id', 'numeric|null');
+
             $username = request('username');
 
             $user_id = request('user_id');

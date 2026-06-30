@@ -2,16 +2,16 @@
 
 <?php section('content'); ?>
 
-<div id="ldap-settings-page" class="container backend-page">
+<div id="ldap-settings-page" class="container backend-page py-3">
     <div class="row">
-        <div class="col-sm-3 offset-sm-1">
+        <div class="col-sm-3">
             <?php component('settings_nav'); ?>
         </div>
-        <div id="ldap-settings" class="col-sm-6">
+        <div id="ldap-settings" class="col-sm-9">
             <form>
                 <fieldset>
                     <div class="d-flex justify-content-between align-items-center border-bottom mb-4 py-2">
-                        <h4 class="text-black-50 mb-0 fw-light">
+                        <h4 class="mb-0 fw-light">
                             <?= lang('ldap') ?>
                         </h4>
 
@@ -40,13 +40,14 @@
                         <div class="col-12">
                             <div class="mb-3">
                                 <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="ldap-is-active" data-field="ldap_is_active">
+                                    <input class="form-check-input" type="checkbox" id="ldap-is-active"
+                                           data-field="ldap_is_active">
                                     <label class="form-check-label" for="ldap-is-active">
                                         <?= lang('active') ?>
                                     </label>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-3">
                                 <label class="form-label" for="ldap-host">
                                     <?= lang('host') ?>
@@ -95,7 +96,8 @@
                                 <label class="form-label" for="ldap-password">
                                     <?= lang('password') ?>
                                 </label>
-                                <input id="ldap-password" type="password" class="form-control" data-field="ldap_password">
+                                <input id="ldap-password" type="password" class="form-control"
+                                       data-field="ldap_password">
                             </div>
 
                             <div class="mb-3">
@@ -110,7 +112,8 @@
                                     <label class="form-label mb-0" for="ldap-filter">
                                         <?= lang('filter') ?>
                                     </label>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 ms-auto" id="ldap-reset-filter">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 ms-auto"
+                                            id="ldap-reset-filter">
                                         <i class="fas fa-undo me-2"></i>
                                         <?= lang('reset') ?>
                                     </button>
@@ -123,27 +126,28 @@
                                     <label class="form-label mb-0" for="ldap-field-mapping">
                                         <?= lang('field_mapping') ?>
                                     </label>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 ms-auto" id="ldap-reset-field-mapping">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 ms-auto"
+                                            id="ldap-reset-field-mapping">
                                         <i class="fas fa-undo me-2"></i>
                                         <?= lang('reset') ?>
                                     </button>
                                 </div>
-                                
-                                <textarea id="ldap-field-mapping" class="form-control" rows="5" data-field="ldap_field_mapping"></textarea>
+
+                                <textarea id="ldap-field-mapping" class="form-control" rows="5"
+                                          data-field="ldap_field_mapping"></textarea>
                             </div>
                         </div>
                     </div>
 
-                    <?php slot('after_primary_appointment_fields'); ?>
                 </fieldset>
             </form>
 
             <div class="d-flex justify-content-between align-items-center border-bottom mb-4 py-2">
-                <h4 class="text-black-50 mb-0 fw-light">
+                <h4 class="mb-0 fw-light">
                     <?= lang('search') ?>
                 </h4>
             </div>
-            
+
             <p class="text-muted small">
                 <?= lang('ldap_search_hint') ?>
             </p>
@@ -155,7 +159,7 @@
 
                 <div class="input-group">
                     <input id="ldap-search-keyword" class="form-control">
-                    
+
                     <button type="submit" class="btn btn-outline-primary">
                         <?= lang('search') ?>
                     </button>
@@ -177,7 +181,6 @@
 
 <?php section('scripts'); ?>
 
-<script src="<?= asset_url('assets/js/utils/url.js') ?>"></script>
 <script src="<?= asset_url('assets/js/http/customers_http_client.js') ?>"></script>
 <script src="<?= asset_url('assets/js/http/providers_http_client.js') ?>"></script>
 <script src="<?= asset_url('assets/js/http/secretaries_http_client.js') ?>"></script>
