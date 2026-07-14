@@ -172,6 +172,13 @@ App.Pages.Customers = (function () {
          */
         $customers.on('click', '#delete-customer', () => {
             const customerId = $id.val();
+
+            // KUM: Termin-Blocker-Patient (E-Mail nicht@loeschen.de) darf nicht geloescht werden.
+            if ($email.val().toLowerCase() === 'nicht@loeschen.de') {
+                alert('Dieser Patient ist der Termin-Blocker und darf nicht geloescht werden.');
+                return;
+            }
+
             const buttons = [
                 {
                     text: lang('cancel'),
