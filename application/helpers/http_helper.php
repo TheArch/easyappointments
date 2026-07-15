@@ -253,10 +253,17 @@ if (!function_exists('method')) {
         /** @var EA_Controller $CI */
         $CI = &get_instance();
 
-        $current_method = $CI->input->method();
+        $current_method = strtoupper($CI->input->method());
+        $expected = strtoupper($expected_method);
 
-        if (strtoupper($current_method) !== strtoupper($expected_method)) {
-            throw new RuntimeException("Method not allowed. Expected {$expected_method}, got {$current_method}.");
+        // KUM: HEAD ist semantisch GET ohne Body (RFC 9110) -> auf GET-Routen zulassen,
+        // u.a. damit Load-Balancer-Health-Checks per HEAD nicht 500 bekommen.
+        if ($current_method === 'HEAD') {
+            $current_method = 'GET';
+        }
+
+        if ($current_method !== $expected) {
+            throw new RuntimeException("Method not allowed. Expected {$expected_method}, got {$CI->input->method()}.");
         }
     }
 }
