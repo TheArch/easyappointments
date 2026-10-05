@@ -157,7 +157,8 @@ class Ics_file
         $attendee = new Attendee(new Formatter());
 
         if (isset($provider['email']) && !empty($provider['email'])) {
-            $attendee->setValue($provider['email']);
+            // Antworten auf den Termin sollen ins Firmenpostfach, nicht an die persoenliche Anbieteradresse.
+            $attendee->setValue(setting('company_email'));
         }
 
         $attendee->setName($provider['first_name'] . ' ' . $provider['last_name']);
@@ -171,7 +172,7 @@ class Ics_file
         // Set the organizer.
         $organizer = new Organizer(new Formatter());
 
-        $organizer->setValue($provider['email'])->setName($provider['first_name'] . ' ' . $provider['last_name']);
+        $organizer->setValue(setting('company_email'))->setName($provider['first_name'] . ' ' . $provider['last_name']);
 
         $event->setOrganizer($organizer);
 
