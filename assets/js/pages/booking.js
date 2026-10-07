@@ -453,6 +453,8 @@ App.Pages.Booking = (function () {
             if ($target.attr('data-step_index') === '3') {
                 if (!App.Pages.Booking.validateCustomerForm()) {
                     return; // Validation failed, do not continue.
+                } else if (askEmailDomainTypo($target)) {
+                    return; // KUM: wait for the answer to the domain prompt.
                 } else {
                     App.Pages.Booking.updateConfirmFrame();
                     
@@ -635,6 +637,95 @@ App.Pages.Booking = (function () {
                 App.Http.Booking.applyPreviousUnavailableDates();
             }, 300);
         });
+    }
+
+    // KUM: the address the user confirmed despite the domain prompt (asked only once per address).
+    let confirmedEmail = null;
+
+    /**
+     * KUM: Levenshtein distance between two strings.
+     *
+     * @param {String} a
+     * @param {String} b
+     *
+     * @return {Number}
+     */
+    function editDistance(a, b) {
+        let previous = Array.from({length: b.length + 1}, (value, index) => index);
+
+        for (let i = 1; i <= a.length; i++) {
+            const current = [i];
+
+            for (let j = 1; j <= b.length; j++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+            }
+
+            previous = current;
+        }
+
+        return previous[b.length];
+    }
+
+    /**
+     * KUM: Ask back when the email domain looks like a typo of med.uni-muenchen.de.
+     *
+     * Domains of the university and the hospital (*uni-muenchen.de, *lmu.de) never trigger the prompt, private
+     * addresses are too different. Nothing is blocked: the user may keep the address.
+     *
+     * @param {jQuery} $nextButton The "next" button of step 3, clicked again after the user kept the address.
+     *
+     * @return {Boolean} Returns true when the prompt is shown and the step must wait.
+     */
+    function askEmailDomainTypo($nextButton) {
+        const email = $email.val().trim();
+        const atIndex = email.lastIndexOf('@');
+
+        if (atIndex < 1 || email === confirmedEmail) {
+            return false;
+        }
+
+        const domain = email.slice(atIndex + 1).toLowerCase();
+        const expectedDomain = 'med.uni-muenchen.de';
+        const validDomains = ['uni-muenchen.de', 'lmu.de'];
+
+        if (validDomains.some((valid) => domain === valid || domain.endsWith('.' + valid))) {
+            return false;
+        }
+
+        if (editDistance(domain, expectedDomain) > 4) {
+            return false;
+        }
+
+        const suggestion = email.slice(0, atIndex) + '@' + expectedDomain;
+
+        App.Utils.Message.show(
+            'E-Mail-Adresse prüfen',
+            `<p>Sie haben <strong>${App.Utils.String.escapeHtml(email)}</strong> eingegeben.</p>
+             <p>Meinten Sie <strong>${App.Utils.String.escapeHtml(suggestion)}</strong>?</p>`,
+            [
+                {
+                    text: 'Nein, so ist es richtig',
+                    className: 'btn btn-outline-primary',
+                    click: (event, messageModal) => {
+                        confirmedEmail = email;
+                        messageModal.hide();
+                        $nextButton.trigger('click');
+                    },
+                },
+                {
+                    text: 'Korrigieren',
+                    className: 'btn btn-primary',
+                    click: (event, messageModal) => {
+                        $email.val(suggestion);
+                        messageModal.hide();
+                        $nextButton.trigger('click');
+                    },
+                },
+            ],
+        );
+
+        return true;
     }
 
     /**
