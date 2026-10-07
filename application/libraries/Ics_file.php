@@ -133,7 +133,7 @@ class Ics_file
             ->setCalendarUserType('INDIVIDUAL')
             ->setRole('REQ-PARTICIPANT')
             ->setParticipationStatus('NEEDS-ACTION')
-            ->setRsvp('TRUE');
+            ->setRsvp('FALSE');
         $event->addAttendee($attendee);
 
         $alarm = new CalendarAlarm();
@@ -181,7 +181,9 @@ class Ics_file
 
         $calendar
             ->setProdId('-//EasyAppointments//Open Source Web Scheduler//EN')
-            ->setMethod('REQUEST')
+            // KUM: PUBLISH statt REQUEST, damit Outlook keine Annehmen/Ablehnen-Knoepfe zeigt und keine
+            // Antworten verschickt. Absagen laufen ueber den Storno-Link in der Mail.
+            ->setMethod('PUBLISH')
             ->setTimezone(new DateTimeZone($provider['timezone']))
             ->addEvent($event);
 
