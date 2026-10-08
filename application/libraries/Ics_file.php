@@ -121,28 +121,15 @@ class Ics_file
 
         $event->setDescription(implode("\\n", $description));
 
-        $attendee = new Attendee(new Formatter());
-
-        if (isset($customer['email']) && !empty($customer['email'])) {
-            $attendee->setValue($customer['email']);
-        }
-
-        // Add the event attendees.
-        $attendee->setName($customer['first_name'] . ' ' . $customer['last_name']);
-        $attendee
-            ->setCalendarUserType('INDIVIDUAL')
-            ->setRole('REQ-PARTICIPANT')
-            ->setParticipationStatus('NEEDS-ACTION')
-            ->setRsvp('FALSE');
-        $event->addAttendee($attendee);
-
+        // KUM: keine ATTENDEE-Zeilen. Mit Teilnehmern behandelt Outlook den Eintrag als Besprechung und zeigt
+        // Annehmen/Ablehnen, auch bei PUBLISH; eine Ablehnung gibt den Platz aber nicht frei. Die Erinnerungen
+        // sind deshalb DISPLAY statt EMAIL (EMAIL braucht einen Teilnehmer).
         $alarm = new CalendarAlarm();
         $alarm_datetime = clone $appointment_start;
         $alarm->setTrigger($alarm_datetime->modify('-15 minutes'));
         $alarm->setSummary('Alarm notification');
         $alarm->setDescription('This is an event reminder');
-        $alarm->setAction('EMAIL');
-        $alarm->addAttendee($attendee);
+        $alarm->setAction('DISPLAY');
         $event->addAlarm($alarm);
 
         $alarm = new CalendarAlarm();
@@ -150,24 +137,8 @@ class Ics_file
         $alarm->setTrigger($alarm_datetime->modify('-60 minutes'));
         $alarm->setSummary('Alarm notification');
         $alarm->setDescription('This is an event reminder');
-        $alarm->setAction('EMAIL');
-        $alarm->addAttendee($attendee);
+        $alarm->setAction('DISPLAY');
         $event->addAlarm($alarm);
-
-        $attendee = new Attendee(new Formatter());
-
-        if (isset($provider['email']) && !empty($provider['email'])) {
-            // Antworten auf den Termin sollen ins Firmenpostfach, nicht an die persoenliche Anbieteradresse.
-            $attendee->setValue(setting('company_email'));
-        }
-
-        $attendee->setName($provider['first_name'] . ' ' . $provider['last_name']);
-        $attendee
-            ->setCalendarUserType('INDIVIDUAL')
-            ->setRole('REQ-PARTICIPANT')
-            ->setParticipationStatus('ACCEPTED')
-            ->setRsvp('FALSE');
-        $event->addAttendee($attendee);
 
         // Set the organizer.
         $organizer = new Organizer(new Formatter());
