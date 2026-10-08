@@ -93,7 +93,15 @@ class Ics_file
             $meeting_link_content[] = '';
         }
 
+        // KUM: Link zum Aendern/Stornieren, damit man aus dem Kalender heraus absagen kann.
+        $manage_link_content = [];
+
+        if (!empty($appointment['hash'])) {
+            $manage_link_content[] = 'Termin ändern oder stornieren: ' . site_url('booking/reschedule/' . $appointment['hash']);
+        }
+
         $description = [
+            ...$manage_link_content,
             ...$meeting_link_content,
             '',
             lang('provider'),
